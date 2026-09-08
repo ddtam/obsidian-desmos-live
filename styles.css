@@ -104,39 +104,12 @@
 	stroke: var(--desmos-live-gridline) !important;
 }
 
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-line,
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-tickmark {
-	stroke: var(--desmos-live-text) !important;
-}
+/* Axis lines, tick numbers and axis titles are deliberately NOT overridden here.
+   Desmos colours them from textColor, which the live canvas obeys and which the
+   screenshot now receives as valid hex; forcing them on the SVG alone is what
+   made the static image and the live view disagree. Gridlines stay, because no
+   config option reaches them. */
 
-/* Desmos strokes a halo behind axis numbers and labels to keep them legible over
-   curves. It is drawn in the graph's own background colour, so it reads as a
-   smear once the background is themed; drop it and colour the glyph instead. */
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-value :nth-child(1),
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-offcenter-axis-value :nth-child(1),
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-label :nth-child(1) > * :nth-child(1),
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) {
-	stroke-width: 0 !important;
-}
-
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-value :nth-child(2),
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-offcenter-axis-value :nth-child(2),
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) text {
-	stroke-width: 0 !important;
-	fill: var(--desmos-live-text) !important;
-}
-
-/* The axis titles, which are a different class from the tick numbers and so
-   kept Desmos's own colouring while everything around them was themed. */
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-label,
-.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-label text {
-	stroke-width: 0 !important;
-	fill: var(--desmos-live-text) !important;
-}
-
-/* Off-document colour probe: a theme value is assigned to it so the browser can
-   normalise whatever notation the theme uses into rgb(), which is then converted
-   to the hex Desmos requires. Never visible. */
 .desmos-live-probe {
 	display: none;
 }

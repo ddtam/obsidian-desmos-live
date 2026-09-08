@@ -1,7 +1,16 @@
 import { buildLiveDocument, buildShotDocument, detectMode, sanitiseColour } from './utils/calculatorDocument';
+import { normaliseColours } from './utils/colours';
 import { formatValue, labelFor, parseSliders } from './utils/sliders';
 import type DesmosLivePlugin from './main';
-import type { BundleSource, CalculatorMode, DesmosBlock, Palette, PanelMode, SliderSpec } from './types';
+import type {
+	BundleSource,
+	CalculatorMode,
+	DesmosBlock,
+	DesmosState,
+	Palette,
+	PanelMode,
+	SliderSpec,
+} from './types';
 
 /** Only one calculator runs at a time, so cost is flat in the number of panels. */
 let livePanel: Panel | undefined;
@@ -145,6 +154,7 @@ export class Panel {
 	private readonly background: string;
 	private readonly palette: Palette;
 	private readonly themed: boolean;
+	private readonly state: DesmosState;
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -161,13 +171,13 @@ export class Panel {
 		private readonly panelMode: PanelMode,
 		forcedMode?: CalculatorMode,
 	) {
-		const state = block.state ?? {};
+		const raw = block.state ?? {};
 		const { height, mode: _mode, ...blockOptions } = block.options ?? {};
 		this.themed = plugin.settings.followTheme;
 		this.palette = readPalette(el);
 		this.background = this.palette.background;
-		this.mode = forcedMode ?? detectMode(state);
-		this.sliders = parseSliders(state);
+		this.mode = forcedMode ?? detectMode(raw);
+		this.sliders = parseSliders(raw);
 
 		// expressions:false is not a preference. A screenshot captures the
 		// graphpaper only, so leaving Desmos's panel on would render the live
@@ -183,6 +193,8 @@ export class Panel {
 			this.options.textColor = this.palette.text;
 		}
 		Object.assign(this.options, blockOptions);
+
+		this.state = normaliseColours(raw, this.themed ? this.palette.text : undefined);
 
 		const px = height ?? plugin.settings.defaultHeight;
 		const root = el.createDiv({ cls: 'desmos-live-panel' });
@@ -319,7 +331,7 @@ export class Panel {
 		// the same state at a different width is a different picture.
 		const key = hash(
 			JSON.stringify([
-				this.block.state ?? {},
+				this.state,
 				this.options,
 				this.mode,
 				this.themed ? this.palette : null,
@@ -367,7 +379,7 @@ export class Panel {
 			const html = buildShotDocument(
 				bundle,
 				this.mode,
-				this.block.state ?? {},
+				this.state,
 				this.options,
 				this.themed ? this.palette : undefined,
 				nonce,
@@ -427,7 +439,7 @@ export class Panel {
 		const html = buildLiveDocument(
 			bundle,
 			this.mode,
-			this.block.state ?? {},
+			this.state,
 			this.options,
 			this.themed ? this.palette : undefined,
 			this.nonce,
