@@ -104,7 +104,8 @@
 	stroke: var(--desmos-live-gridline) !important;
 }
 
-.desmos-live-svg .dcg-svg-axis-line {
+.desmos-live-svg .dcg-svg-axis-line,
+.desmos-live-svg .dcg-svg-tickmark {
 	stroke: var(--desmos-live-text) !important;
 }
 
@@ -112,13 +113,23 @@
    curves. It is drawn in the graph's own background colour, so it reads as a
    smear once the background is themed; drop it and colour the glyph instead. */
 .desmos-live-svg .dcg-svg-axis-value :nth-child(1),
+.desmos-live-svg .dcg-svg-offcenter-axis-value :nth-child(1),
 .desmos-live-svg .dcg-svg-label :nth-child(1) > * :nth-child(1),
 .desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) {
 	stroke-width: 0 !important;
 }
 
 .desmos-live-svg .dcg-svg-axis-value :nth-child(2),
+.desmos-live-svg .dcg-svg-offcenter-axis-value :nth-child(2),
 .desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) text {
+	stroke-width: 0 !important;
+	fill: var(--desmos-live-text) !important;
+}
+
+/* The axis titles, which are a different class from the tick numbers and so
+   kept Desmos's own colouring while everything around them was themed. */
+.desmos-live-svg .dcg-svg-axis-label,
+.desmos-live-svg .dcg-svg-axis-label text {
 	stroke-width: 0 !important;
 	fill: var(--desmos-live-text) !important;
 }
