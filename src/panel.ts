@@ -8,8 +8,17 @@ let livePanel: Panel | undefined;
 
 const panels = new Set<Panel>();
 
-/** How long to wait for a frame to report before assuming it cannot run. */
+/** How long to wait for a live frame to report ready before assuming it cannot run. */
 const FRAME_TIMEOUT_MS = 8000;
+
+/**
+ * Screenshots get their own, longer deadline, and it must exceed the one inside
+ * the shot document or that one can never report. Rendering and serialising the
+ * graph is the slow part: a few hundred milliseconds on a desktop, but seconds on
+ * a phone, and killing it early is indistinguishable here from a frame that never
+ * ran at all.
+ */
+const SHOT_TIMEOUT_MS = 25000;
 
 /**
  * How a frame's document reaches it.
@@ -143,6 +152,7 @@ export class Panel {
 	private pending = new Map<string, string>();
 	private onFrameMessage?: (ev: MessageEvent) => void;
 	private readyTimer = 0;
+	private shotError?: string;
 
 	constructor(
 		private readonly plugin: DesmosLivePlugin,
@@ -256,14 +266,21 @@ export class Panel {
 			// Say which stage failed. "Could not render" covers a missing download
 			// and a frame that will not run alike, and those need different fixes.
 			const haveBundle = (await this.plugin.bundleSource()) !== undefined;
+			const reason = this.shotError ? ` (${this.shotError})` : '';
 			this.graphEl.createDiv({
 				cls: 'desmos-live-error',
 				text: haveBundle
-					? 'Desmos Live: the Desmos bundle is present but no frame would run it. ' +
-						'Both blob and srcdoc delivery were tried.'
+					? `Desmos Live: could not render this graph to an image${reason}. ` +
+						'Tap to open it as a live calculator instead.'
 					: 'Desmos Live: the Desmos bundle has not been downloaded. ' +
 						'Check the API key and connection, then reload the plugin.',
 			});
+			// The live path is known to work where the screenshot does not, so leave
+			// the panel usable rather than dead.
+			if (this.panelMode !== 'figure') {
+				this.graphEl.addClass('is-activatable');
+				this.graphEl.addEventListener('click', () => void this.activate(), { once: true });
+			}
 			return;
 		}
 		const node = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
@@ -357,14 +374,20 @@ export class Panel {
 				resolve(svg);
 			};
 			const onMessage = (ev: MessageEvent) => {
-				const d = ev.data as { t?: string; nonce?: string; ok?: boolean; svg?: string };
+				const d = ev.data as { t?: string; nonce?: string; ok?: boolean; svg?: string; error?: string };
 				if (!d || d.t !== 'desmos-live-shot' || d.nonce !== nonce) return;
+				// The frame says why it failed; discarding that leaves every failure
+				// looking like a frame that would not run.
+				if (!d.ok) this.shotError = d.error ?? 'no reason given';
 				done(d.ok ? d.svg : undefined);
 			};
 			win.addEventListener('message', onMessage);
 			// A frame that cannot run the script never reports at all, so the caller
 			// needs its own deadline rather than the one inside the document.
-			timer = win.setTimeout(() => done(undefined), FRAME_TIMEOUT_MS);
+			timer = win.setTimeout(() => {
+				this.shotError = `timed out after ${SHOT_TIMEOUT_MS / 1000}s`;
+				done(undefined);
+			}, SHOT_TIMEOUT_MS);
 			shot = this.el.ownerDocument.body.createEl('iframe', { attr: { style } });
 			release = deliver(shot, html, delivery, win);
 		});
