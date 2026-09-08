@@ -23,6 +23,36 @@ function frameWindow(el: HTMLElement): typeof window {
 }
 
 /**
+ * Desmos accepts only a 3- or 6-character hex colour for backgroundColor and
+ * textColor, and **silently substitutes white** for anything else, warning to the
+ * console. Obsidian themes resolve their variables to `rgb()` or `hsl()`, so a
+ * value taken straight from the theme is rejected every time. CSS has no such
+ * limit, which is why the static image stayed themed while the live calculator
+ * turned white: the same colour, accepted by one path and discarded by the other.
+ *
+ * Normalising through a probe element leaves the browser to do the conversion,
+ * whatever notation the theme happens to use.
+ */
+function toHex(value: string, el: HTMLElement): string | undefined {
+	const doc = el.ownerDocument;
+	const probe = doc.body.createSpan({ cls: 'desmos-live-probe' });
+	probe.style.color = value;
+	// An unparseable colour leaves the property empty rather than throwing.
+	if (!probe.style.color) {
+		probe.remove();
+		return undefined;
+	}
+	const computed = doc.defaultView?.getComputedStyle(probe).color ?? '';
+	probe.remove();
+
+	const parts = /rgba?\(([^)]+)\)/.exec(computed);
+	if (!parts?.[1]) return undefined;
+	const channels = parts[1].split(',').slice(0, 3).map(n => Math.round(Number.parseFloat(n)));
+	if (channels.length !== 3 || channels.some(c => !Number.isFinite(c))) return undefined;
+	return `#${channels.map(c => Math.min(255, Math.max(0, c)).toString(16).padStart(2, '0')).join('')}`;
+}
+
+/**
  * Read the palette off the running app rather than deriving it. Obsidian resolves
  * its theme into CSS variables, so the colours are measurable; hardcoded ones
  * would drift from whatever theme or snippet the reader actually has applied.
@@ -40,8 +70,11 @@ function readPalette(el: HTMLElement): Palette {
 	const view = doc.defaultView;
 	if (!view) return fallback;
 	const style = view.getComputedStyle(el);
-	const pick = (name: string, alt: string, miss: string) =>
-		sanitiseColour(style.getPropertyValue(name) || style.getPropertyValue(alt), miss);
+	// Hex throughout, so one palette serves both the Desmos config and the CSS.
+	const pick = (name: string, alt: string, miss: string) => {
+		const raw = sanitiseColour(style.getPropertyValue(name) || style.getPropertyValue(alt), miss);
+		return toHex(raw, el) ?? miss;
+	};
 
 	return {
 		background: pick('--desmos-live-background', '--background-primary', fallback.background),

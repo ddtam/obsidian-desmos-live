@@ -133,3 +133,10 @@
 	stroke-width: 0 !important;
 	fill: var(--desmos-live-text) !important;
 }
+
+/* Off-document colour probe: a theme value is assigned to it so the browser can
+   normalise whatever notation the theme uses into rgb(), which is then converted
+   to the hex Desmos requires. Never visible. */
+.desmos-live-probe {
+	display: none;
+}
