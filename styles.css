@@ -22,7 +22,7 @@
 }
 
 .desmos-live-graph > iframe,
-.desmos-live-graph > .desmos-live-panel.is-themed .desmos-live-svg {
+.desmos-live-graph > .desmos-live-svg {
 	display: block;
 	width: 100%;
 	height: 100%;

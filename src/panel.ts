@@ -192,6 +192,14 @@ export class Panel {
 		}
 		const node = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
 		node.setAttribute('class', 'desmos-live-svg');
+		// Width and height come off so the image scales with the note, but that only
+		// works if a viewBox carries the coordinate system. Derive one when Desmos
+		// did not supply it, or the drawing renders at native size in the corner.
+		const w = Number.parseFloat(node.getAttribute('width') ?? '');
+		const h = Number.parseFloat(node.getAttribute('height') ?? '');
+		if (!node.getAttribute('viewBox') && Number.isFinite(w) && Number.isFinite(h)) {
+			node.setAttribute('viewBox', `0 0 ${w} ${h}`);
+		}
 		node.removeAttribute('width');
 		node.removeAttribute('height');
 		this.graphEl.appendChild(node);
