@@ -29,6 +29,12 @@ type Delivery = 'blob' | 'srcdoc';
 /** Hand a document to a frame, returning a cleanup for anything it allocated. */
 function deliver(frame: HTMLIFrameElement, html: string, how: Delivery, win: typeof window): () => void {
 	if (how === 'srcdoc') {
+		// allow-scripts and nothing else, which is what the community Desmos plugin
+		// does and the only structural difference between its frame and this one.
+		// It denies the frame same-origin, which a srcdoc frame has no use for: the
+		// bundle is embedded rather than fetched, and the message channel is matched
+		// by nonce rather than by origin.
+		frame.sandbox.add('allow-scripts');
 		frame.srcdoc = html;
 		return () => {};
 	}
