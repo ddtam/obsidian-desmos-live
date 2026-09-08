@@ -190,7 +190,18 @@ export class Panel {
 		// coloured by stylesheet. Both hang off this one class so they cannot end
 		// up themed differently, which is what happened when only the config half
 		// was conditional.
-		if (plugin.settings.followTheme) root.addClass('is-themed');
+		if (plugin.settings.followTheme) {
+			root.addClass('is-themed');
+			// Hand the stylesheet the same hex the calculator was given. Left to its
+			// own defaults it would resolve the theme variables independently, and
+			// the two halves would differ by whatever hex normalisation dropped:
+			// alpha, or a fractional channel. Same values, same picture.
+			root.setCssProps({
+				'--desmos-live-background': this.palette.background,
+				'--desmos-live-text': this.palette.text,
+				'--desmos-live-gridline': this.palette.gridline,
+			});
+		}
 		this.graphEl = root.createDiv({ cls: 'desmos-live-graph' });
 		this.graphEl.style.height = `${px}px`;
 		if (plugin.settings.followTheme) this.graphEl.style.background = this.background;
