@@ -6,6 +6,7 @@ export const DEFAULT_HEIGHT = 400;
 
 export const DEFAULT_SETTINGS: DesmosLiveSettings = {
 	defaultHeight: DEFAULT_HEIGHT,
+	followTheme: true,
 };
 
 export class DesmosLiveSettingTab extends PluginSettingTab {
@@ -22,7 +23,7 @@ export class DesmosLiveSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Default height (px)')
-			.setDesc('Height of each graph embed in pixels.')
+			.setDesc('Height of each graph embed. A block can override this with its own "height" option.')
 			.addText(text =>
 				text
 					.setPlaceholder(String(DEFAULT_HEIGHT))
@@ -34,6 +35,20 @@ export class DesmosLiveSettingTab extends PluginSettingTab {
 							await this.plugin.saveSettings();
 						}
 					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Follow Obsidian theme')
+			.setDesc(
+				'Draw graphs on a dark background in dark mode, taking the colour from ' +
+					'the active theme. A block can override this with its own ' +
+					'"invertedColors" option.',
+			)
+			.addToggle(toggle =>
+				toggle.setValue(this.plugin.settings.followTheme).onChange(async value => {
+					this.plugin.settings.followTheme = value;
+					await this.plugin.saveSettings();
+				}),
 			);
 	}
 }

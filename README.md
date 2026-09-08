@@ -40,7 +40,32 @@ A bare definition such as `a=1` gets an automatic slider. To set its range, give
 }
 ```
 
-`desmos-live` auto-detects 2D against 3D from the state. `desmos-live-2d` and `desmos-live-3d` force one, which is useful for starting an empty graph where there is no state to detect from. Graph height is a plugin setting.
+`desmos-live` auto-detects 2D against 3D from the state. `desmos-live-2d` and `desmos-live-3d` force one, which is useful for starting an empty graph where there is no state to detect from.
+
+### Calculator options
+
+Wrapping the state in `{ "options": ..., "state": ... }` passes the options straight to the Desmos constructor, so the whole [documented set](https://www.desmos.com/api/v1.11/docs/index.html#document-calculator) is available. A bare state without the wrapper still works.
+
+```json
+{
+  "options": { "height": 300, "expressionsCollapsed": true, "settingsMenu": false },
+  "state": { "version": 11, "expressions": { "list": [] } }
+}
+```
+
+`height` is the one key this plugin consumes itself; everything else is Desmos's. Useful ones:
+
+| option | effect |
+| --- | --- |
+| `height` | embed height in pixels, overriding the plugin setting |
+| `expressions` | `false` hides the side panel entirely, **which also hides the sliders** |
+| `expressionsCollapsed` | starts the side panel collapsed, reachable by the chevron |
+| `invertedColors` | dark graph paper, overriding the theme setting |
+| `settingsMenu`, `zoomButtons`, `lockViewport` | the usual Desmos chrome |
+
+### Theme
+
+Graphs follow the Obsidian theme by default: dark mode gets `invertedColors` and the background is read from the active theme's `--background-primary` rather than hardcoded, so a custom theme or snippet is picked up. Frames rebuild themselves when the theme changes. Turn it off in settings, or override per block with `invertedColors`.
 
 ## Development
 
