@@ -153,8 +153,24 @@ export class Panel {
 		);
 	}
 
+	/**
+	 * A markdown post-processor runs before its element is laid out, so the panel
+	 * can still measure 0 wide here. Screenshotting then would capture a different
+	 * aspect ratio from the one the live calculator later gets, and Desmos expands
+	 * whichever axis it must to fill the frame, so the two views would show
+	 * different amounts of the graph. Wait for a real width before measuring.
+	 */
+	private async laidOut(): Promise<void> {
+		for (let i = 0; i < 30 && this.graphEl.clientWidth === 0; i++) {
+			await new Promise<void>(resolve => {
+				frameWindow(this.el).requestAnimationFrame(() => resolve());
+			});
+		}
+	}
+
 	/** Draw the cached SVG, rendering and caching it first if necessary. */
 	async renderStatic(): Promise<void> {
+		await this.laidOut();
 		const svg = await this.staticSvg();
 		if (!this.graphEl.isConnected || this.frame) return;
 		this.graphEl.empty();
@@ -179,8 +195,17 @@ export class Panel {
 	}
 
 	private async staticSvg(): Promise<string | undefined> {
+		// Geometry is part of the key: Desmos expands an axis to fill its frame, so
+		// the same state at a different width is a different picture.
 		const key = hash(
-			JSON.stringify([this.block.state ?? {}, this.options, this.mode, this.palette]),
+			JSON.stringify([
+				this.block.state ?? {},
+				this.options,
+				this.mode,
+				this.palette,
+				this.graphEl.clientWidth,
+				this.graphEl.clientHeight,
+			]),
 		);
 		const cached = await this.plugin.readCache(key);
 		if (cached) return cached;

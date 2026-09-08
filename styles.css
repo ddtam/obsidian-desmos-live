@@ -92,29 +92,33 @@
 	--desmos-live-gridline: var(--background-modifier-border);
 }
 
+/* !important throughout: a screenshot carries inline styles on its own elements,
+   which outrank a plain rule, so without it the static image keeps Desmos's
+   colours while the live frame takes the theme's and the two disagree. */
 .desmos-live-svg .dcg-svg-background {
-	fill: var(--desmos-live-background);
+	fill: var(--desmos-live-background) !important;
 }
 
 .desmos-live-svg .dcg-svg-major-gridline,
 .desmos-live-svg .dcg-svg-minor-gridline {
-	stroke: var(--desmos-live-gridline);
+	stroke: var(--desmos-live-gridline) !important;
 }
 
 .desmos-live-svg .dcg-svg-axis-line {
-	stroke: var(--desmos-live-text);
+	stroke: var(--desmos-live-text) !important;
 }
 
-/* Desmos paints a halo behind axis numbers and labels to keep them legible over
+/* Desmos strokes a halo behind axis numbers and labels to keep them legible over
    curves. It is drawn in the graph's own background colour, so it reads as a
-   smear once the background is themed; zero the stroke and colour the glyph. */
+   smear once the background is themed; drop it and colour the glyph instead. */
 .desmos-live-svg .dcg-svg-axis-value :nth-child(1),
 .desmos-live-svg .dcg-svg-label :nth-child(1) > * :nth-child(1),
 .desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) {
-	stroke-width: 0;
+	stroke-width: 0 !important;
 }
 
-.desmos-live-svg .dcg-svg-axis-value :nth-child(2) {
-	stroke-width: 0;
-	fill: var(--desmos-live-text);
+.desmos-live-svg .dcg-svg-axis-value :nth-child(2),
+.desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) text {
+	stroke-width: 0 !important;
+	fill: var(--desmos-live-text) !important;
 }

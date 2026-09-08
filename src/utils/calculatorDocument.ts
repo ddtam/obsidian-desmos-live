@@ -43,13 +43,14 @@ const embed = (value: unknown): string => JSON.stringify(value).replace(/<\//g, 
  */
 export function graphpaperCss(palette: Palette): string {
 	return `
-.dcg-svg-background{fill:${palette.background};}
-.dcg-svg-major-gridline,.dcg-svg-minor-gridline{stroke:${palette.gridline};}
-.dcg-svg-axis-line{stroke:${palette.text};}
-.dcg-svg-axis-value :nth-child(1){stroke-width:0;}
-.dcg-svg-axis-value :nth-child(2){stroke-width:0;fill:${palette.text};}
-.dcg-svg-label :nth-child(1) > * :nth-child(1){stroke-width:0;}
-.dcg-svg-label :nth-child(n+2) > * :nth-child(1){stroke-width:0;}`;
+.dcg-svg-background{fill:${palette.background} !important;}
+.dcg-svg-major-gridline,.dcg-svg-minor-gridline{stroke:${palette.gridline} !important;}
+.dcg-svg-axis-line{stroke:${palette.text} !important;}
+.dcg-svg-axis-value :nth-child(1){stroke-width:0 !important;}
+.dcg-svg-axis-value :nth-child(2){stroke-width:0 !important;fill:${palette.text} !important;}
+.dcg-svg-label :nth-child(1) > * :nth-child(1){stroke-width:0 !important;}
+.dcg-svg-label :nth-child(n+2) > * :nth-child(1){stroke-width:0 !important;}
+.dcg-svg-label :nth-child(n+2) > * :nth-child(1) text{fill:${palette.text} !important;}`;
 }
 
 const SHELL = (palette: Palette, body: string): string => `<!DOCTYPE html>
