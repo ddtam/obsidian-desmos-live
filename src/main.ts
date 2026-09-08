@@ -1,5 +1,6 @@
 import { Notice, Plugin, requestUrl } from 'obsidian';
 import { clearRendered, registerDesmosRenderers, rerenderAll } from './renderer';
+import { registerSelfTest } from './selftest';
 import { DEFAULT_SETTINGS, DesmosLiveSettingTab } from './settings';
 import type { DesmosLiveSettings } from './types';
 
@@ -44,6 +45,7 @@ export default class DesmosLivePlugin extends Plugin {
 		this.settings = { ...DEFAULT_SETTINGS, ...saved };
 		this.addSettingTab(new DesmosLiveSettingTab(this.app, this));
 		registerDesmosRenderers(this);
+		registerSelfTest(this);
 
 		// invertedColors is fixed when the calculator is constructed, so a theme
 		// change means rebuilding the frames rather than restyling them.

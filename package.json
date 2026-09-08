@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-desmos-live",
-	"version": "1.1.0-plus.2",
+	"version": "1.1.0-plus.3",
 	"description": "Embed live interactive Desmos graphs (2D and 3D) using desmos-live code blocks.",
 	"main": "main.js",
 	"type": "module",
