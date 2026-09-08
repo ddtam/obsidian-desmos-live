@@ -11,6 +11,32 @@ const panels = new Set<Panel>();
 /** How long to wait for a frame to report before assuming it cannot run. */
 const FRAME_TIMEOUT_MS = 8000;
 
+/**
+ * How a frame's document reaches it.
+ *
+ * `blob` is preferred: the document inherits the app's origin, so it can pull the
+ * Desmos bundle from an `app://` URL and each frame stays small. `srcdoc` has no
+ * origin at all, which rules that out and forces the bundle to be embedded, but
+ * it needs nothing of the platform beyond an iframe. The community Desmos plugin
+ * has always used srcdoc, which is what makes it the sensible thing to fall back
+ * to when blob delivery turns out not to work.
+ *
+ * Nothing here reads `event.origin`; frames are matched by nonce, so a null-origin
+ * document is not a problem for the message channel.
+ */
+type Delivery = 'blob' | 'srcdoc';
+
+/** Hand a document to a frame, returning a cleanup for anything it allocated. */
+function deliver(frame: HTMLIFrameElement, html: string, how: Delivery, win: typeof window): () => void {
+	if (how === 'srcdoc') {
+		frame.srcdoc = html;
+		return () => {};
+	}
+	const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
+	frame.src = url;
+	return () => win.URL.revokeObjectURL(url);
+}
+
 const claimLive = (panel: Panel): void => {
 	livePanel = panel;
 };
@@ -221,9 +247,16 @@ export class Panel {
 		this.graphEl.empty();
 
 		if (!svg) {
+			// Say which stage failed. "Could not render" covers a missing download
+			// and a frame that will not run alike, and those need different fixes.
+			const haveBundle = (await this.plugin.bundleSource()) !== undefined;
 			this.graphEl.createDiv({
 				cls: 'desmos-live-error',
-				text: 'Desmos Live: could not render this graph.',
+				text: haveBundle
+					? 'Desmos Live: the Desmos bundle is present but no frame would run it. ' +
+						'Both blob and srcdoc delivery were tried.'
+					: 'Desmos Live: the Desmos bundle has not been downloaded. ' +
+						'Check the API key and connection, then reload the plugin.',
 			});
 			return;
 		}
@@ -278,14 +311,14 @@ export class Panel {
 		if (!this.plugin.calculatorJsPath) return undefined;
 		const url = this.plugin.app.vault.adapter.getResourcePath(this.plugin.calculatorJsPath);
 
-		const referenced = await this.shotAttempt({ url });
+		const referenced = await this.shotAttempt({ url }, 'blob');
 		if (referenced) return referenced;
 
 		const source = await this.plugin.bundleSource();
-		return source ? this.shotAttempt({ source }) : undefined;
+		return source ? this.shotAttempt({ source }, 'srcdoc') : undefined;
 	}
 
-	private shotAttempt(bundle: BundleSource): Promise<string | undefined> {
+	private shotAttempt(bundle: BundleSource, delivery: Delivery): Promise<string | undefined> {
 		return new Promise(resolve => {
 			const win = frameWindow(this.el);
 			const nonce = Math.random().toString(36).slice(2);
@@ -305,15 +338,15 @@ export class Panel {
 				this.themed ? this.palette : undefined,
 				nonce,
 			);
-			const blobUrl = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
 			const style = `position:absolute;left:-10000px;top:0;border:none;width:${Math.round(width)}px;height:${Math.round(height)}px;`;
 
 			let shot: HTMLIFrameElement | undefined;
+			let release = () => {};
 			let timer = 0;
 			const done = (svg: string | undefined) => {
 				win.clearTimeout(timer);
 				win.removeEventListener('message', onMessage);
-				win.URL.revokeObjectURL(blobUrl);
+				release();
 				shot?.remove();
 				resolve(svg);
 			};
@@ -326,7 +359,8 @@ export class Panel {
 			// A frame that cannot run the script never reports at all, so the caller
 			// needs its own deadline rather than the one inside the document.
 			timer = win.setTimeout(() => done(undefined), FRAME_TIMEOUT_MS);
-			shot = this.el.ownerDocument.body.createEl('iframe', { attr: { src: blobUrl, style } });
+			shot = this.el.ownerDocument.body.createEl('iframe', { attr: { style } });
+			release = deliver(shot, html, delivery, win);
 		});
 	}
 
@@ -339,7 +373,7 @@ export class Panel {
 		claimLive(this);
 
 		const jsUrl = this.plugin.app.vault.adapter.getResourcePath(this.plugin.calculatorJsPath);
-		await this.mount({ url: jsUrl });
+		await this.mount({ url: jsUrl }, 'blob');
 	}
 
 	/**
@@ -348,7 +382,7 @@ export class Panel {
 	 * is the arrangement the community Desmos plugin uses and the one that works
 	 * where a blob frame does not inherit the app's origin.
 	 */
-	private async mount(bundle: BundleSource): Promise<void> {
+	private async mount(bundle: BundleSource, delivery: Delivery): Promise<void> {
 		const win = frameWindow(this.el);
 		const html = buildLiveDocument(
 			bundle,
@@ -358,7 +392,7 @@ export class Panel {
 			this.themed ? this.palette : undefined,
 			this.nonce,
 		);
-		const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
+
 
 		this.onFrameMessage = (ev: MessageEvent) => {
 			const d = ev.data as { t?: string; nonce?: string };
@@ -381,9 +415,10 @@ export class Panel {
 		this.graphEl.removeClass('is-activatable');
 		this.graphEl.addClass('is-live');
 		this.frame = this.graphEl.createEl('iframe', {
-			attr: { src: url, style: 'width:100%;height:100%;border:none;display:block;' },
+			attr: { style: 'width:100%;height:100%;border:none;display:block;' },
 		});
-		this.frame.addEventListener('load', () => win.URL.revokeObjectURL(url), { once: true });
+		const release = deliver(this.frame, html, delivery, win);
+		this.frame.addEventListener('load', () => release(), { once: true });
 
 		this.readyTimer = win.setTimeout(() => {
 			if (this.ready || !this.frame) return;
@@ -401,7 +436,7 @@ export class Panel {
 			});
 			return;
 		}
-		await this.mount({ source });
+		await this.mount({ source }, 'srcdoc');
 	}
 
 	private teardownFrame(): void {
