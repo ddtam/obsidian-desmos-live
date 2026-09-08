@@ -32,19 +32,10 @@ export function sanitiseColour(value: string, fallback: string): string {
 	return trimmed.length > 0 && SAFE_COLOUR.test(trimmed) ? trimmed : fallback;
 }
 
-export function buildDocument(
-	calculatorJsUrl: string,
-	mode: CalculatorMode,
-	stateJson: string,
-	optionsJson: string,
-	background: string,
-): string {
-	// Replace </ to prevent the JSON from prematurely closing the <script> tag.
-	const safeState = stateJson.replace(/<\//g, '<\\/');
-	const safeOptions = optionsJson.replace(/<\//g, '<\\/');
-	const constructor = DESMOS_CONSTRUCTOR[mode];
+// Replace </ so embedded JSON cannot close the <script> tag early.
+const embed = (value: unknown): string => JSON.stringify(value).replace(/<\//g, '<\\/');
 
-	return `<!DOCTYPE html>
+const SHELL = (background: string, body: string): string => `<!DOCTYPE html>
 <html>
 <head>
 <style>
@@ -53,14 +44,80 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:$
 </head>
 <body>
 <div id="calculator" style="width:100%;height:100%"></div>
-<script src="${calculatorJsUrl}"></script>
-<script>
-(function () {
-  var elt = document.getElementById('calculator');
-  var Calc = Desmos.${constructor}(elt, ${safeOptions});
-  Calc.setState(${safeState});
-})();
-</script>
+${body}
 </body>
 </html>`;
+
+/**
+ * A live calculator that accepts slider updates from the parent.
+ *
+ * Controls are drawn by the parent rather than by Desmos, for a measured reason:
+ * a screenshot captures the graphpaper only, so a panel showing Desmos's own
+ * expression list renders at 280px where its static SVG is 600px, and the graph
+ * would visibly reflow the moment a reader activated it. Parent-side controls
+ * are the same DOM in both states, so activation changes nothing but the pixels.
+ */
+export function buildLiveDocument(
+	calculatorJsUrl: string,
+	mode: CalculatorMode,
+	state: DesmosState,
+	options: Record<string, unknown>,
+	background: string,
+	nonce: string,
+): string {
+	return SHELL(
+		background,
+		`<script src="${calculatorJsUrl}"></script>
+<script>
+(function () {
+  var nonce = ${embed(nonce)};
+  var Calc = Desmos.${DESMOS_CONSTRUCTOR[mode]}(document.getElementById('calculator'), ${embed(options)});
+  Calc.setState(${embed(state)});
+  window.addEventListener('message', function (ev) {
+    var d = ev.data;
+    if (!d || d.t !== 'desmos-live-set' || d.nonce !== nonce) return;
+    Calc.setExpression({ id: d.id, latex: d.latex });
+  });
+  parent.postMessage({ t: 'desmos-live-ready', nonce: nonce }, '*');
+})();
+</script>`,
+	);
+}
+
+/**
+ * Renders once off-screen, posts the SVG back and stops. This is the expensive
+ * path (measured at 238 to 329ms against 21 to 41ms to construct), which is why
+ * its output is cached and why activation never runs it.
+ */
+export function buildShotDocument(
+	calculatorJsUrl: string,
+	mode: CalculatorMode,
+	state: DesmosState,
+	options: Record<string, unknown>,
+	background: string,
+	nonce: string,
+): string {
+	return SHELL(
+		background,
+		`<script src="${calculatorJsUrl}"></script>
+<script>
+(function () {
+  var nonce = ${embed(nonce)};
+  function send(p) { p.t = 'desmos-live-shot'; p.nonce = nonce; parent.postMessage(p, '*'); }
+  var done = false;
+  setTimeout(function () { if (!done) send({ ok: false, error: 'timed out' }); }, 20000);
+  try {
+    var Calc = Desmos.${DESMOS_CONSTRUCTOR[mode]}(document.getElementById('calculator'), ${embed(options)});
+    Calc.setState(${embed(state)});
+    Calc.asyncScreenshot({ showLabels: true, format: 'svg' }, function (data) {
+      done = true;
+      send({ ok: true, svg: String(data) });
+    });
+  } catch (err) {
+    done = true;
+    send({ ok: false, error: String((err && err.message) || err) });
+  }
+})();
+</script>`,
+	);
 }

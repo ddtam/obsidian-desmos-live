@@ -1,6 +1,9 @@
+export type PanelMode = 'figure' | 'interactive' | 'live';
+
 export interface DesmosLiveSettings {
 	defaultHeight: number;
 	followTheme: boolean;
+	defaultMode: PanelMode;
 }
 
 export type CalculatorMode = '2d' | '3d';
@@ -19,11 +22,14 @@ export interface DesmosState {
 
 /**
  * Constructor options handed to Desmos verbatim, so the whole documented set is
- * reachable from a block without this plugin having to know each name. `height`
- * is the one key intercepted here: it sizes the embed, and Desmos has no use
- * for it.
+ * reachable from a block without this plugin having to know each name. Two keys
+ * are intercepted: `height` sizes the embed and `mode` chooses how the panel
+ * renders, and Desmos has a use for neither.
  */
-export type CalculatorOptions = Record<string, unknown> & { height?: number };
+export type CalculatorOptions = Record<string, unknown> & {
+	height?: number;
+	mode?: PanelMode;
+};
 
 /**
  * A block is either `{ options, state }` or a bare `Calc.getState()` dump. The
@@ -34,4 +40,14 @@ export type CalculatorOptions = Record<string, unknown> & { height?: number };
 export interface DesmosBlock {
 	options?: CalculatorOptions;
 	state?: DesmosState;
+}
+
+/** A slider recovered from the state, driven by a control the plugin draws. */
+export interface SliderSpec {
+	id: string;
+	symbol: string;
+	value: number;
+	min: number;
+	max: number;
+	step: number;
 }

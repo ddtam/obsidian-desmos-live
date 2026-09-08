@@ -8,6 +8,8 @@ export default defineConfig(
 		'dist',
 		'esbuild.config.mjs',
 		'version-bump.mjs',
+		// Release tooling: plain node scripts, outside the plugin's tsconfig.
+		'scripts',
 		'versions.json',
 		'main.js',
 		'calculator.js',

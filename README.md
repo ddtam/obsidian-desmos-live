@@ -53,15 +53,32 @@ Wrapping the state in `{ "options": ..., "state": ... }` passes the options stra
 }
 ```
 
-`height` is the one key this plugin consumes itself; everything else is Desmos's. Useful ones:
+`height` and `mode` are the two keys this plugin consumes itself; everything else is Desmos's. Useful ones:
 
 | option | effect |
 | --- | --- |
+| `mode` | `figure`, `interactive` or `live`, see below |
 | `height` | embed height in pixels, overriding the plugin setting |
-| `expressions` | `false` hides the side panel entirely, **which also hides the sliders** |
-| `expressionsCollapsed` | starts the side panel collapsed, reachable by the chevron |
 | `invertedColors` | dark graph paper, overriding the theme setting |
 | `settingsMenu`, `zoomButtons`, `lockViewport` | the usual Desmos chrome |
+
+### Modes
+
+A running Desmos calculator is not cheap: each one is a JS heap, a Web Worker, canvases and an animation loop, so a note that boots one per graph gets expensive fast. Panels are therefore **static images by default**, and a calculator is constructed only when a reader asks for one.
+
+| mode | behaviour |
+| --- | --- |
+| `figure` | a cached image, never interactive, and it survives PDF export |
+| `interactive` (default) | a cached image until clicked, then a live calculator |
+| `live` | boots immediately |
+
+**At most one calculator runs at a time.** Activating a panel returns any other to its image, so a note's cost does not grow with the number of panels in it.
+
+Sliders are drawn by the plugin rather than by Desmos, below the graph. This is not a style choice: a Desmos screenshot captures the graphpaper only, so a panel showing Desmos's own expression list renders about 320px narrower than its own static image and the graph would visibly reflow the moment it was activated. Plugin-drawn controls are the same elements in both states, so activation changes nothing but the pixels. Dragging a slider activates the panel by itself, and movement made while the engine boots is applied when it arrives.
+
+Any expression defining a single symbol (`a=1`, `p_{j}=0.3`) becomes a slider, taking its range from the expression's `slider` key when it has one.
+
+Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options and theme, so they are regenerated per device rather than synced around as a second copy of a figure.
 
 ### Theme
 
@@ -75,6 +92,8 @@ npm run dev      # watch build into ./main.js
 npm run build    # typecheck, then production build
 npm run lint
 ```
+
+Releasing follows the same pattern as the other forks. `npm run brat:build` is the dry run; `npm run brat:release -- <version> [--notes "..."]` bumps `manifest.json` and `versions.json`, builds, commits, pushes and cuts the GitHub release with the artifacts attached. `main.js` is gitignored, so it ships as a release asset and is never committed.
 
 Set `OBSIDIAN_OUTFILE` to build straight into a vault, which avoids copying after every change:
 

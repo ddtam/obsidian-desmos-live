@@ -1,12 +1,19 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type DesmosLivePlugin from './main';
-import type { DesmosLiveSettings } from './types';
+import type { DesmosLiveSettings, PanelMode } from './types';
 
 export const DEFAULT_HEIGHT = 400;
 
 export const DEFAULT_SETTINGS: DesmosLiveSettings = {
 	defaultHeight: DEFAULT_HEIGHT,
 	followTheme: true,
+	defaultMode: 'interactive',
+};
+
+const MODE_LABELS: Record<PanelMode, string> = {
+	figure: 'Figure, never interactive',
+	interactive: 'Interactive, static until clicked',
+	live: 'Live, runs immediately',
 };
 
 export class DesmosLiveSettingTab extends PluginSettingTab {
@@ -36,6 +43,21 @@ export class DesmosLiveSettingTab extends PluginSettingTab {
 						}
 					}),
 			);
+
+		new Setting(containerEl)
+			.setName('Default mode')
+			.setDesc(
+				'How a block renders when it does not name a mode. Interactive draws a ' +
+					'cached image and boots a calculator only when the reader clicks, so a ' +
+					'note full of panels costs one running calculator at most.',
+			)
+			.addDropdown(drop => {
+				for (const [value, label] of Object.entries(MODE_LABELS)) drop.addOption(value, label);
+				drop.setValue(this.plugin.settings.defaultMode).onChange(async value => {
+					this.plugin.settings.defaultMode = value as PanelMode;
+					await this.plugin.saveSettings();
+				});
+			});
 
 		new Setting(containerEl)
 			.setName('Follow Obsidian theme')

@@ -15,6 +15,7 @@ const DESMOS_API_URL =
 export default class DesmosLivePlugin extends Plugin {
 	settings!: DesmosLiveSettings;
 	calculatorJsPath?: string;
+	private cacheDir?: string;
 
 	async onload(): Promise<void> {
 		const dir = this.manifest.dir;
@@ -26,6 +27,9 @@ export default class DesmosLivePlugin extends Plugin {
 		// Always derived from the current plugin folder, never persisted — a saved
 		// path goes stale the moment the folder is renamed.
 		this.calculatorJsPath = `${dir}/calculator.js`;
+		// Beside the bundle, which is gitignored and regenerated per device, so
+		// rendered images are never synced around as a second copy of a figure.
+		this.cacheDir = `${dir}/cache`;
 
 		const adapter = this.app.vault.adapter;
 		if (!(await adapter.exists(this.calculatorJsPath))) {
@@ -59,5 +63,32 @@ export default class DesmosLivePlugin extends Plugin {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		rerenderAll(this);
+	}
+
+	async readCache(key: string): Promise<string | undefined> {
+		if (!this.cacheDir) return undefined;
+		const path = `${this.cacheDir}/${key}.svg`;
+		try {
+			if (await this.app.vault.adapter.exists(path)) {
+				return await this.app.vault.adapter.read(path);
+			}
+		} catch {
+			// A cache miss and an unreadable cache are the same thing to the caller:
+			// render it again.
+		}
+		return undefined;
+	}
+
+	async writeCache(key: string, svg: string): Promise<void> {
+		if (!this.cacheDir) return;
+		try {
+			if (!(await this.app.vault.adapter.exists(this.cacheDir))) {
+				await this.app.vault.adapter.mkdir(this.cacheDir);
+			}
+			await this.app.vault.adapter.write(`${this.cacheDir}/${key}.svg`, svg);
+		} catch {
+			// Caching is an optimisation; failing to write one costs a re-render
+			// and nothing else.
+		}
 	}
 }
