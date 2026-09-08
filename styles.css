@@ -104,11 +104,38 @@
 	stroke: var(--desmos-live-gridline) !important;
 }
 
-/* Axis lines, tick numbers and axis titles are deliberately NOT overridden here.
-   Desmos colours them from textColor, which the live canvas obeys and which the
-   screenshot now receives as valid hex; forcing them on the SVG alone is what
-   made the static image and the live view disagree. Gridlines stay, because no
-   config option reaches them. */
+/* A screenshot ignores textColor for its axes and titles, rendering them in
+   Desmos's defaults, while the live canvas obeys it. So the SVG has to be
+   coloured here or the two disagree, which -plus.17 confirmed by removing these
+   and getting black text back.
+
+   The halo behind axis text is stroked rather than removed, in the background
+   colour, which is what the canvas does: `getTextColor()` for the glyph and
+   `getBackgroundColor()` for the stroke behind it. On any themed background that
+   halo is invisible, which is why the live view reads as plain text. */
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-line,
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-tickmark {
+	stroke: var(--desmos-live-text) !important;
+}
+
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-value :nth-child(1),
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-offcenter-axis-value :nth-child(1),
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-label :nth-child(1) > * :nth-child(1) {
+	stroke: var(--desmos-live-background) !important;
+}
+
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-value :nth-child(2),
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-offcenter-axis-value :nth-child(2) {
+	stroke-width: 0 !important;
+	fill: var(--desmos-live-text) !important;
+}
+
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-label,
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-axis-label text,
+.desmos-live-panel.is-themed .desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) text {
+	stroke-width: 0 !important;
+	fill: var(--desmos-live-text) !important;
+}
 
 .desmos-live-probe {
 	display: none;

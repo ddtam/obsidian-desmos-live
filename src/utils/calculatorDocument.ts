@@ -45,6 +45,10 @@ export function graphpaperCss(palette: Palette): string {
 	return `
 .dcg-svg-background{fill:${palette.background} !important;}
 .dcg-svg-major-gridline,.dcg-svg-minor-gridline{stroke:${palette.gridline} !important;}
+.dcg-svg-axis-line,.dcg-svg-tickmark{stroke:${palette.text} !important;}
+.dcg-svg-axis-value :nth-child(1),.dcg-svg-offcenter-axis-value :nth-child(1){stroke:${palette.background} !important;}
+.dcg-svg-axis-value :nth-child(2),.dcg-svg-offcenter-axis-value :nth-child(2){stroke-width:0 !important;fill:${palette.text} !important;}
+.dcg-svg-axis-label,.dcg-svg-axis-label text{stroke-width:0 !important;fill:${palette.text} !important;}
 .dcg-svg-label :nth-child(1) > * :nth-child(1){stroke-width:0 !important;}
 .dcg-svg-label :nth-child(n+2) > * :nth-child(1){stroke-width:0 !important;}
 .dcg-svg-label :nth-child(n+2) > * :nth-child(1) text{fill:${palette.text} !important;}`;
