@@ -8,6 +8,17 @@ export interface DesmosLiveSettings {
 
 export type CalculatorMode = '2d' | '3d';
 
+/**
+ * Graph colours, resolved from the running app. Overridable per element through
+ * `--desmos-live-background`, `--desmos-live-text` and `--desmos-live-gridline`,
+ * which fall back to Obsidian's own theme variables.
+ */
+export interface Palette {
+	background: string;
+	text: string;
+	gridline: string;
+}
+
 // Desmos states are officially "opaque" (treat as a black box) per the API docs,
 // so this only types the handful of fields this plugin actually inspects.
 export interface DesmosState {

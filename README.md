@@ -59,7 +59,7 @@ Wrapping the state in `{ "options": ..., "state": ... }` passes the options stra
 | --- | --- |
 | `mode` | `figure`, `interactive` or `live`, see below |
 | `height` | embed height in pixels, overriding the plugin setting |
-| `invertedColors` | dark graph paper, overriding the theme setting |
+| `backgroundColor`, `textColor` | graph colours, overriding the theme setting |
 | `settingsMenu`, `zoomButtons`, `lockViewport` | the usual Desmos chrome |
 
 ### Modes
@@ -82,7 +82,19 @@ Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, 
 
 ### Theme
 
-Graphs follow the Obsidian theme by default: dark mode gets `invertedColors` and the background is read from the active theme's `--background-primary` rather than hardcoded, so a custom theme or snippet is picked up. Frames rebuild themselves when the theme changes. Turn it off in settings, or override per block with `invertedColors`.
+Graphs follow the Obsidian theme by default, taking their background, axis and gridline colours from it rather than from hardcoded values, so a custom theme or snippet is picked up. Panels rebuild themselves when the theme changes.
+
+Colours are set through Desmos's own `backgroundColor` and `textColor` config, **not** its `invertedColors` flag. That matters for more than taste: `invertedColors` inverts every hue and applies to the live calculator but not to the same graph's static image, so a panel rendered one way and activated the other visibly changed colour. Named colours are honoured by both paths, including the screenshot, so the two agree by construction.
+
+The parts Desmos does not expose as config, gridlines and axis strokes, are styled through its `dcg-svg-*` classes: directly on the inline image, and injected into the live frame, since CSS custom properties do not cross a frame boundary. Retune any of them in a snippet:
+
+```css
+.desmos-live-panel {
+  --desmos-live-background: var(--background-primary);
+  --desmos-live-text: var(--text-normal);
+  --desmos-live-gridline: var(--background-modifier-border);
+}
+```
 
 ## Development
 

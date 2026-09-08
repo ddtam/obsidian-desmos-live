@@ -1,7 +1,7 @@
 import { buildLiveDocument, buildShotDocument, detectMode, sanitiseColour } from './utils/calculatorDocument';
 import { formatValue, labelFor, parseSliders } from './utils/sliders';
 import type DesmosLivePlugin from './main';
-import type { CalculatorMode, DesmosBlock, PanelMode, SliderSpec } from './types';
+import type { CalculatorMode, DesmosBlock, Palette, PanelMode, SliderSpec } from './types';
 
 /** Only one calculator runs at a time, so cost is flat in the number of panels. */
 let livePanel: Panel | undefined;
@@ -23,18 +23,31 @@ function frameWindow(el: HTMLElement): typeof window {
 }
 
 /**
- * Read the theme off the running app rather than deriving it. Obsidian marks the
- * mode with a body class and resolves its palette into CSS variables, so both are
- * measurable; hardcoded colours would drift from whatever theme the reader has.
+ * Read the palette off the running app rather than deriving it. Obsidian resolves
+ * its theme into CSS variables, so the colours are measurable; hardcoded ones
+ * would drift from whatever theme or snippet the reader actually has applied.
+ *
+ * Every value is overridable through a `--desmos-live-*` variable, so a snippet
+ * can retune a graph without the plugin being rebuilt.
  */
-function readTheme(el: HTMLElement): { dark: boolean; background: string } {
+function readPalette(el: HTMLElement): Palette {
 	const doc = el.ownerDocument;
 	const dark = doc.body.classList.contains('theme-dark');
-	const fallback = dark ? '#1e1e1e' : '#ffffff';
+	const fallback: Palette = dark
+		? { background: '#1e1e1e', text: '#dadada', gridline: '#3a3a3a' }
+		: { background: '#ffffff', text: '#222222', gridline: '#cccccc' };
+
 	const view = doc.defaultView;
-	if (!view) return { dark, background: fallback };
-	const resolved = view.getComputedStyle(doc.body).getPropertyValue('--background-primary');
-	return { dark, background: sanitiseColour(resolved, fallback) };
+	if (!view) return fallback;
+	const style = view.getComputedStyle(el);
+	const pick = (name: string, alt: string, miss: string) =>
+		sanitiseColour(style.getPropertyValue(name) || style.getPropertyValue(alt), miss);
+
+	return {
+		background: pick('--desmos-live-background', '--background-primary', fallback.background),
+		text: pick('--desmos-live-text', '--text-normal', fallback.text),
+		gridline: pick('--desmos-live-gridline', '--background-modifier-border', fallback.gridline),
+	};
 }
 
 /** FNV-1a, enough to key a cache of a few dozen SVGs. */
@@ -53,6 +66,7 @@ export class Panel {
 	private readonly mode: CalculatorMode;
 	private readonly options: Record<string, unknown>;
 	private readonly background: string;
+	private readonly palette: Palette;
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -69,8 +83,8 @@ export class Panel {
 	) {
 		const state = block.state ?? {};
 		const { height, mode: _mode, ...blockOptions } = block.options ?? {};
-		const theme = readTheme(el);
-		this.background = theme.background;
+		this.palette = readPalette(el);
+		this.background = this.palette.background;
 		this.mode = forcedMode ?? detectMode(state);
 		this.sliders = parseSliders(state);
 
@@ -78,7 +92,14 @@ export class Panel {
 		// graphpaper only, so leaving Desmos's panel on would render the live
 		// view 320px narrower than its own static image.
 		this.options = { border: false, expressions: false };
-		if (plugin.settings.followTheme) this.options.invertedColors = theme.dark;
+		if (plugin.settings.followTheme) {
+			// Named colours rather than invertedColors, which crudely inverts every
+			// hue and is what made the live view disagree with its own static image.
+			// Desmos reads these through getBackgroundColor/getTextColor, which the
+			// screenshot path uses too, so both sides match by construction.
+			this.options.backgroundColor = this.palette.background;
+			this.options.textColor = this.palette.text;
+		}
 		Object.assign(this.options, blockOptions);
 
 		const px = height ?? plugin.settings.defaultHeight;
@@ -159,7 +180,7 @@ export class Panel {
 
 	private async staticSvg(): Promise<string | undefined> {
 		const key = hash(
-			JSON.stringify([this.block.state ?? {}, this.options, this.mode, this.background]),
+			JSON.stringify([this.block.state ?? {}, this.options, this.mode, this.palette]),
 		);
 		const cached = await this.plugin.readCache(key);
 		if (cached) return cached;
@@ -184,7 +205,7 @@ export class Panel {
 				this.mode,
 				this.block.state ?? {},
 				this.options,
-				this.background,
+				this.palette,
 				nonce,
 			);
 			const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
@@ -220,7 +241,7 @@ export class Panel {
 			this.mode,
 			this.block.state ?? {},
 			this.options,
-			this.background,
+			this.palette,
 			this.nonce,
 		);
 		const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));

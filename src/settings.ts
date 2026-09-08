@@ -62,9 +62,10 @@ export class DesmosLiveSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName('Follow Obsidian theme')
 			.setDesc(
-				'Draw graphs on a dark background in dark mode, taking the colour from ' +
-					'the active theme. A block can override this with its own ' +
-					'"invertedColors" option.',
+				'Take the graph background, axis and gridline colours from the active ' +
+					'theme. Retune them with the --desmos-live-background, ' +
+					'--desmos-live-text and --desmos-live-gridline CSS variables, or ' +
+					'override per block with Desmos\'s own backgroundColor and textColor.',
 			)
 			.addToggle(toggle =>
 				toggle.setValue(this.plugin.settings.followTheme).onChange(async value => {

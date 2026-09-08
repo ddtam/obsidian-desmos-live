@@ -1,4 +1,4 @@
-import type { CalculatorMode, DesmosState } from '../types';
+import type { CalculatorMode, DesmosState, Palette } from '../types';
 
 const DESMOS_CONSTRUCTOR: Record<CalculatorMode, string> = {
 	'2d': 'GraphingCalculator',
@@ -35,11 +35,29 @@ export function sanitiseColour(value: string, fallback: string): string {
 // Replace </ so embedded JSON cannot close the <script> tag early.
 const embed = (value: unknown): string => JSON.stringify(value).replace(/<\//g, '<\\/');
 
-const SHELL = (background: string, body: string): string => `<!DOCTYPE html>
+/**
+ * Desmos names its graphpaper parts with `dcg-svg-*` classes, so the parts its
+ * config does not expose (gridlines, axis strokes, the halo behind axis numbers)
+ * are reachable by stylesheet. The parent's CSS custom properties do not cross
+ * into a frame, so the resolved literals are written in rather than referenced.
+ */
+export function graphpaperCss(palette: Palette): string {
+	return `
+.dcg-svg-background{fill:${palette.background};}
+.dcg-svg-major-gridline,.dcg-svg-minor-gridline{stroke:${palette.gridline};}
+.dcg-svg-axis-line{stroke:${palette.text};}
+.dcg-svg-axis-value :nth-child(1){stroke-width:0;}
+.dcg-svg-axis-value :nth-child(2){stroke-width:0;fill:${palette.text};}
+.dcg-svg-label :nth-child(1) > * :nth-child(1){stroke-width:0;}
+.dcg-svg-label :nth-child(n+2) > * :nth-child(1){stroke-width:0;}`;
+}
+
+const SHELL = (palette: Palette, body: string): string => `<!DOCTYPE html>
 <html>
 <head>
 <style>
-html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:${background};}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:${palette.background};}
+${graphpaperCss(palette)}
 </style>
 </head>
 <body>
@@ -62,11 +80,11 @@ export function buildLiveDocument(
 	mode: CalculatorMode,
 	state: DesmosState,
 	options: Record<string, unknown>,
-	background: string,
+	palette: Palette,
 	nonce: string,
 ): string {
 	return SHELL(
-		background,
+		palette,
 		`<script src="${calculatorJsUrl}"></script>
 <script>
 (function () {
@@ -94,11 +112,11 @@ export function buildShotDocument(
 	mode: CalculatorMode,
 	state: DesmosState,
 	options: Record<string, unknown>,
-	background: string,
+	palette: Palette,
 	nonce: string,
 ): string {
 	return SHELL(
-		background,
+		palette,
 		`<script src="${calculatorJsUrl}"></script>
 <script>
 (function () {

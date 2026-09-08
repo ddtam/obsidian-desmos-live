@@ -8,7 +8,9 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
-		"lint": "eslint ."
+		"lint": "eslint .",
+		"brat:build": "npm run build && node scripts/brat-publish.mjs",
+		"brat:release": "node scripts/brat-release.mjs"
 	},
 	"keywords": [],
 	"license": "0-BSD",

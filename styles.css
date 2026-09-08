@@ -81,3 +81,40 @@
 	/* Tabular figures so a changing value does not shift the slider beside it. */
 	font-variant-numeric: tabular-nums;
 }
+
+/* The static image is inline SVG in the note, so Desmos's own graphpaper classes
+   are reachable from here. The live frame gets the same rules injected into its
+   document, since custom properties do not cross a frame boundary. Retune any of
+   these in a snippet rather than editing the plugin. */
+.desmos-live-panel {
+	--desmos-live-background: var(--background-primary);
+	--desmos-live-text: var(--text-normal);
+	--desmos-live-gridline: var(--background-modifier-border);
+}
+
+.desmos-live-svg .dcg-svg-background {
+	fill: var(--desmos-live-background);
+}
+
+.desmos-live-svg .dcg-svg-major-gridline,
+.desmos-live-svg .dcg-svg-minor-gridline {
+	stroke: var(--desmos-live-gridline);
+}
+
+.desmos-live-svg .dcg-svg-axis-line {
+	stroke: var(--desmos-live-text);
+}
+
+/* Desmos paints a halo behind axis numbers and labels to keep them legible over
+   curves. It is drawn in the graph's own background colour, so it reads as a
+   smear once the background is themed; zero the stroke and colour the glyph. */
+.desmos-live-svg .dcg-svg-axis-value :nth-child(1),
+.desmos-live-svg .dcg-svg-label :nth-child(1) > * :nth-child(1),
+.desmos-live-svg .dcg-svg-label :nth-child(n + 2) > * :nth-child(1) {
+	stroke-width: 0;
+}
+
+.desmos-live-svg .dcg-svg-axis-value :nth-child(2) {
+	stroke-width: 0;
+	fill: var(--desmos-live-text);
+}
