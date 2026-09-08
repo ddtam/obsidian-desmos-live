@@ -4,6 +4,12 @@ export interface DesmosLiveSettings {
 	defaultHeight: number;
 	followTheme: boolean;
 	defaultMode: PanelMode;
+	/** Desmos API key. Empty falls back to Desmos's public demo key. */
+	apiKey: string;
+	/** The key the cached bundle was fetched with, so a change re-downloads it. */
+	bundleKey: string;
+	/** Draw the "powered by Desmos" mark. See the README before turning it off. */
+	showBranding: boolean;
 }
 
 export type CalculatorMode = '2d' | '3d';

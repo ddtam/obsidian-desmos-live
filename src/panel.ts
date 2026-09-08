@@ -92,6 +92,7 @@ export class Panel {
 		// graphpaper only, so leaving Desmos's panel on would render the live
 		// view 320px narrower than its own static image.
 		this.options = { border: false, expressions: false };
+		if (!plugin.settings.showBranding) this.options.branding = false;
 		if (plugin.settings.followTheme) {
 			// Named colours rather than invertedColors, which crudely inverts every
 			// hue and is what made the live view disagree with its own static image.

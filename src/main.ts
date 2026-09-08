@@ -1,16 +1,15 @@
 import { Notice, Plugin, requestUrl } from 'obsidian';
 import { clearRendered, registerDesmosRenderers, rerenderAll } from './renderer';
 import { registerSelfTest } from './selftest';
-import { DEFAULT_SETTINGS, DesmosLiveSettingTab } from './settings';
+import { DEMO_API_KEY, DEFAULT_SETTINGS, DesmosLiveSettingTab } from './settings';
 import type { DesmosLiveSettings } from './types';
 
 // The official Desmos embed API. Unlike the desmos.com site bundle, this one is
 // built to be framed: it has no window.top/postMessage guard, no site-shell
 // auto-boot, and it inlines its own CSS and fonts (so there is no companion
-// stylesheet and nothing 404s). Key is Desmos's public demo API key, which has
-// Calculator3D enabled alongside GraphingCalculator.
-const DESMOS_API_URL =
-	'https://www.desmos.com/api/v1.11/calculator.js?apiKey=dcb31709b452b1cf9dc26972add0fda6';
+// stylesheet and nothing 404s).
+const apiUrl = (key: string): string =>
+	`https://www.desmos.com/api/v1.11/calculator.js?apiKey=${encodeURIComponent(key)}`;
 
 export default class DesmosLivePlugin extends Plugin {
 	settings!: DesmosLiveSettings;
@@ -31,22 +30,9 @@ export default class DesmosLivePlugin extends Plugin {
 		// rendered images are never synced around as a second copy of a figure.
 		this.cacheDir = `${dir}/cache`;
 
-		const adapter = this.app.vault.adapter;
-		if (!(await adapter.exists(this.calculatorJsPath))) {
-			try {
-				const response = await requestUrl({ url: DESMOS_API_URL });
-				await adapter.write(this.calculatorJsPath, response.text);
-			} catch (e) {
-				new Notice(
-					`Desmos Live: could not download the Desmos API (${(e as Error).message}). ` +
-						'Check your connection and reload the plugin.',
-					0,
-				);
-			}
-		}
-
 		const saved = ((await this.loadData()) ?? {}) as Partial<DesmosLiveSettings>;
 		this.settings = { ...DEFAULT_SETTINGS, ...saved };
+		await this.ensureBundle();
 		this.addSettingTab(new DesmosLiveSettingTab(this.app, this));
 		registerDesmosRenderers(this);
 		registerSelfTest(this);
@@ -63,6 +49,35 @@ export default class DesmosLivePlugin extends Plugin {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		rerenderAll(this);
+	}
+
+	/**
+	 * Download the Desmos bundle if it is missing, or if the key it was fetched
+	 * with is not the key configured now. The second case is the one that bites:
+	 * the bundle is cached per device and a changed key would otherwise keep
+	 * serving the old download indefinitely, so the key that fetched it is
+	 * recorded alongside it.
+	 */
+	async ensureBundle(): Promise<void> {
+		if (!this.calculatorJsPath) return;
+		const adapter = this.app.vault.adapter;
+		const key = this.settings.apiKey.trim() || DEMO_API_KEY;
+
+		const present = await adapter.exists(this.calculatorJsPath);
+		if (present && this.settings.bundleKey === key) return;
+
+		try {
+			const response = await requestUrl({ url: apiUrl(key) });
+			await adapter.write(this.calculatorJsPath, response.text);
+			this.settings.bundleKey = key;
+			await this.saveData(this.settings);
+		} catch (e) {
+			new Notice(
+				`Desmos Live: could not download the Desmos API (${(e as Error).message}). ` +
+					'Check the API key and your connection, then reload the plugin.',
+				0,
+			);
+		}
 	}
 
 	async readCache(key: string): Promise<string | undefined> {

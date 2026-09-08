@@ -10,6 +10,18 @@ Add `ddtam/obsidian-desmos-live` as a beta plugin in [BRAT](https://github.com/T
 
 On first load the plugin downloads the Desmos embed API to `.obsidian/plugins/desmos-live/calculator.js`, so the first launch needs a connection. Everything after that is local.
 
+### API key
+
+The plugin falls back to Desmos's public demo key. Set your own under **Desmos API key** in settings; changing it re-downloads the bundle, because that download is cached per device and was fetched with the previous key.
+
+The key is not a secret in the usual sense, since an API key of this kind is served inside the page of every site that uses one. It is still worth knowing where it lives: plugin settings are written to `.obsidian/plugins/desmos-live/data.json`, which is not part of this repository but will travel to your other devices if you sync the plugins folder.
+
+### Attribution mark
+
+Every graph carries a "powered by Desmos" mark in its bottom-right corner. It is pinned there and cannot be moved, so an x-axis title collides with it; put that label in your prose instead.
+
+**Show attribution mark** in settings turns it off. Before doing so: the option behind it, `branding: false`, is one Desmos ships but does **not** list in its published API documentation, and Desmos's policies route API integration to `partnerships@desmos.com`. Whether your licence covers disabling it is a question for them, not one to settle by reading the bundle.
+
 ## Usage
 
 The fence takes a Desmos state object. To get one, open a graph on desmos.com, open the console, run `Calc.getState()` and copy the result as an object.

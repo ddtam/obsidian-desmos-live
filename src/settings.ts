@@ -4,10 +4,20 @@ import type { DesmosLiveSettings, PanelMode } from './types';
 
 export const DEFAULT_HEIGHT = 400;
 
+/**
+ * Desmos's public demo key, which is what upstream shipped and what the plugin
+ * falls back to. It is not a secret: an API key of this kind is served inside
+ * the page of every site that uses one.
+ */
+export const DEMO_API_KEY = 'dcb31709b452b1cf9dc26972add0fda6';
+
 export const DEFAULT_SETTINGS: DesmosLiveSettings = {
 	defaultHeight: DEFAULT_HEIGHT,
 	followTheme: true,
 	defaultMode: 'interactive',
+	apiKey: '',
+	bundleKey: '',
+	showBranding: true,
 };
 
 const MODE_LABELS: Record<PanelMode, string> = {
@@ -27,6 +37,38 @@ export class DesmosLiveSettingTab extends PluginSettingTab {
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+
+		new Setting(containerEl)
+			.setName('Desmos API key')
+			.setDesc(
+				'Leave empty to use Desmos\'s public demo key. Changing this re-downloads ' +
+					'the Desmos bundle, since it is cached per device and was fetched with ' +
+					'the previous key.',
+			)
+			.addText(text =>
+				text
+					.setPlaceholder(DEMO_API_KEY)
+					.setValue(this.plugin.settings.apiKey)
+					.onChange(async value => {
+						this.plugin.settings.apiKey = value.trim();
+						await this.plugin.saveSettings();
+						await this.plugin.ensureBundle();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName('Show attribution mark')
+			.setDesc(
+				'The "powered by Desmos" mark in the corner of every graph. Turning it ' +
+					'off uses an option Desmos ships but does not document, so check your ' +
+					'API licence covers it before doing so.',
+			)
+			.addToggle(toggle =>
+				toggle.setValue(this.plugin.settings.showBranding).onChange(async value => {
+					this.plugin.settings.showBranding = value;
+					await this.plugin.saveSettings();
+				}),
+			);
 
 		new Setting(containerEl)
 			.setName('Default height (px)')
