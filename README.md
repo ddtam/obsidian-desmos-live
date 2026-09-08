@@ -6,7 +6,7 @@ The community [`obsidian-desmos`](https://github.com/Nigecat/obsidian-desmos) pl
 
 ## Install
 
-Add `ddtam/obsidian-desmos-live` as a beta plugin in [BRAT](https://github.com/TfTHacker/obsidian42-brat), then enable **Desmos Live** under Community plugins.
+Add `ddtam/obsidian-desmos-live` as a beta plugin in [BRAT](https://github.com/TfTHacker/obsidian42-brat), then enable **Desmos Live** under Community plugins. Desktop and mobile both, though mobile is untested.
 
 On first load the plugin downloads the Desmos embed API to `.obsidian/plugins/desmos-live/calculator.js`, so the first launch needs a connection. Everything after that is local.
 
@@ -107,6 +107,10 @@ The parts Desmos does not expose as config, gridlines and axis strokes, are styl
   --desmos-live-gridline: var(--background-modifier-border);
 }
 ```
+
+### Loading the bundle
+
+A frame normally references the downloaded bundle by URL, which works because a `blob:` document inherits the app's origin and an `app://` script is then same-origin. Where that does not hold, the frame never reports back and the panel is rebuilt once with the bundle embedded in the document instead. Embedding costs about 4 MB per frame, so it is the fallback rather than the default; it is also the arrangement the community Desmos plugin uses, which is why it is the sensible thing to fall back to.
 
 ## Development
 

@@ -1,4 +1,4 @@
-import type { CalculatorMode, DesmosState, Palette } from '../types';
+import type { BundleSource, CalculatorMode, DesmosState, Palette } from '../types';
 
 const DESMOS_CONSTRUCTOR: Record<CalculatorMode, string> = {
 	'2d': 'GraphingCalculator',
@@ -54,6 +54,19 @@ export function graphpaperCss(palette: Palette): string {
 .dcg-svg-label :nth-child(n+2) > * :nth-child(1) text{fill:${palette.text} !important;}`;
 }
 
+/**
+ * Referencing the bundle by URL keeps each frame small, and works because a blob
+ * document inherits the app's origin, so an `app://` script is same-origin.
+ * Inlining it instead costs ~4 MB per frame but needs no origin at all, which is
+ * the route the community Desmos plugin takes and the one that survives where
+ * blob frames are handled differently.
+ */
+export function scriptTag(bundle: BundleSource): string {
+	return 'url' in bundle
+		? `<script src="${bundle.url}"></script>`
+		: `<script>${bundle.source.replace(/<\//g, '<\\/')}</script>`;
+}
+
 const SHELL = (palette: Palette | undefined, body: string): string => `<!DOCTYPE html>
 <html>
 <head>
@@ -78,7 +91,7 @@ ${body}
  * are the same DOM in both states, so activation changes nothing but the pixels.
  */
 export function buildLiveDocument(
-	calculatorJsUrl: string,
+	bundle: BundleSource,
 	mode: CalculatorMode,
 	state: DesmosState,
 	options: Record<string, unknown>,
@@ -87,7 +100,7 @@ export function buildLiveDocument(
 ): string {
 	return SHELL(
 		palette,
-		`<script src="${calculatorJsUrl}"></script>
+		`${scriptTag(bundle)}
 <script>
 (function () {
   var nonce = ${embed(nonce)};
@@ -110,7 +123,7 @@ export function buildLiveDocument(
  * its output is cached and why activation never runs it.
  */
 export function buildShotDocument(
-	calculatorJsUrl: string,
+	bundle: BundleSource,
 	mode: CalculatorMode,
 	state: DesmosState,
 	options: Record<string, unknown>,
@@ -119,7 +132,7 @@ export function buildShotDocument(
 ): string {
 	return SHELL(
 		palette,
-		`<script src="${calculatorJsUrl}"></script>
+		`${scriptTag(bundle)}
 <script>
 (function () {
   var nonce = ${embed(nonce)};

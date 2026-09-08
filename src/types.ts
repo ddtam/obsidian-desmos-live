@@ -14,6 +14,9 @@ export interface DesmosLiveSettings {
 
 export type CalculatorMode = '2d' | '3d';
 
+/** How a frame gets the Desmos bundle: by reference, or embedded outright. */
+export type BundleSource = { url: string } | { source: string };
+
 /**
  * Graph colours, resolved from the running app. Overridable per element through
  * `--desmos-live-background`, `--desmos-live-text` and `--desmos-live-gridline`,

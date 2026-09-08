@@ -15,6 +15,7 @@ export default class DesmosLivePlugin extends Plugin {
 	settings!: DesmosLiveSettings;
 	calculatorJsPath?: string;
 	private cacheDir?: string;
+	private bundleText?: string;
 
 	async onload(): Promise<void> {
 		const dir = this.manifest.dir;
@@ -69,6 +70,7 @@ export default class DesmosLivePlugin extends Plugin {
 		try {
 			const response = await requestUrl({ url: apiUrl(key) });
 			await adapter.write(this.calculatorJsPath, response.text);
+			this.bundleText = undefined;
 			this.settings.bundleKey = key;
 			await this.saveData(this.settings);
 		} catch (e) {
@@ -78,6 +80,22 @@ export default class DesmosLivePlugin extends Plugin {
 				0,
 			);
 		}
+	}
+
+	/**
+	 * The bundle's own text, for frames that cannot reference it by URL. Held in
+	 * memory once read, since it is about 4 MB and every frame needing it needs
+	 * all of it.
+	 */
+	async bundleSource(): Promise<string | undefined> {
+		if (this.bundleText !== undefined) return this.bundleText;
+		if (!this.calculatorJsPath) return undefined;
+		try {
+			this.bundleText = await this.app.vault.adapter.read(this.calculatorJsPath);
+		} catch {
+			return undefined;
+		}
+		return this.bundleText;
 	}
 
 	async readCache(key: string): Promise<string | undefined> {

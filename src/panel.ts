@@ -1,12 +1,15 @@
 import { buildLiveDocument, buildShotDocument, detectMode, sanitiseColour } from './utils/calculatorDocument';
 import { formatValue, labelFor, parseSliders } from './utils/sliders';
 import type DesmosLivePlugin from './main';
-import type { CalculatorMode, DesmosBlock, Palette, PanelMode, SliderSpec } from './types';
+import type { BundleSource, CalculatorMode, DesmosBlock, Palette, PanelMode, SliderSpec } from './types';
 
 /** Only one calculator runs at a time, so cost is flat in the number of panels. */
 let livePanel: Panel | undefined;
 
 const panels = new Set<Panel>();
+
+/** How long to wait for a frame to report before assuming it cannot run. */
+const FRAME_TIMEOUT_MS = 8000;
 
 const claimLive = (panel: Panel): void => {
 	livePanel = panel;
@@ -107,6 +110,7 @@ export class Panel {
 	private ready = false;
 	private pending = new Map<string, string>();
 	private onFrameMessage?: (ev: MessageEvent) => void;
+	private readyTimer = 0;
 
 	constructor(
 		private readonly plugin: DesmosLivePlugin,
@@ -264,39 +268,65 @@ export class Panel {
 		return svg;
 	}
 
-	private screenshot(): Promise<string | undefined> {
+	/**
+	 * Referencing the bundle is the cheap path and works wherever a blob frame
+	 * inherits the app's origin, so an `app://` script counts as same-origin.
+	 * Where it does not, the frame simply never answers, so a retry with the
+	 * bundle embedded covers the difference rather than leaving a blank panel.
+	 */
+	private async screenshot(): Promise<string | undefined> {
+		if (!this.plugin.calculatorJsPath) return undefined;
+		const url = this.plugin.app.vault.adapter.getResourcePath(this.plugin.calculatorJsPath);
+
+		const referenced = await this.shotAttempt({ url });
+		if (referenced) return referenced;
+
+		const source = await this.plugin.bundleSource();
+		return source ? this.shotAttempt({ source }) : undefined;
+	}
+
+	private shotAttempt(bundle: BundleSource): Promise<string | undefined> {
 		return new Promise(resolve => {
-			if (!this.plugin.calculatorJsPath) return resolve(undefined);
 			const win = frameWindow(this.el);
 			const nonce = Math.random().toString(36).slice(2);
-			const jsUrl = this.plugin.app.vault.adapter.getResourcePath(this.plugin.calculatorJsPath);
 
-			// Screenshot at the panel's own geometry, so the cached SVG matches
-			// the box it will be drawn into.
-			const rect = this.graphEl.getBoundingClientRect();
+			// Shoot at the panel's own geometry, so the image matches both the box
+			// it is drawn into and the live view that replaces it. Desmos expands an
+			// axis to fill whatever frame it gets, so a wrong size is a wrong picture
+			// rather than merely a rescaled one.
+			const width = this.graphEl.clientWidth || 600;
+			const height = this.graphEl.clientHeight || 400;
+
 			const html = buildShotDocument(
-				jsUrl,
+				bundle,
 				this.mode,
 				this.block.state ?? {},
 				this.options,
 				this.themed ? this.palette : undefined,
 				nonce,
 			);
-			const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
-
-			const style = `position:absolute;left:-10000px;top:0;border:none;width:${Math.max(320, Math.round(rect.width))}px;height:${Math.max(200, Math.round(rect.height))}px;`;
+			const blobUrl = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
+			const style = `position:absolute;left:-10000px;top:0;border:none;width:${Math.round(width)}px;height:${Math.round(height)}px;`;
 
 			let shot: HTMLIFrameElement | undefined;
+			let timer = 0;
+			const done = (svg: string | undefined) => {
+				win.clearTimeout(timer);
+				win.removeEventListener('message', onMessage);
+				win.URL.revokeObjectURL(blobUrl);
+				shot?.remove();
+				resolve(svg);
+			};
 			const onMessage = (ev: MessageEvent) => {
 				const d = ev.data as { t?: string; nonce?: string; ok?: boolean; svg?: string };
 				if (!d || d.t !== 'desmos-live-shot' || d.nonce !== nonce) return;
-				win.removeEventListener('message', onMessage);
-				win.URL.revokeObjectURL(url);
-				shot?.remove();
-				resolve(d.ok ? d.svg : undefined);
+				done(d.ok ? d.svg : undefined);
 			};
 			win.addEventListener('message', onMessage);
-			shot = this.el.ownerDocument.body.createEl('iframe', { attr: { src: url, style } });
+			// A frame that cannot run the script never reports at all, so the caller
+			// needs its own deadline rather than the one inside the document.
+			timer = win.setTimeout(() => done(undefined), FRAME_TIMEOUT_MS);
+			shot = this.el.ownerDocument.body.createEl('iframe', { attr: { src: blobUrl, style } });
 		});
 	}
 
@@ -308,10 +338,20 @@ export class Panel {
 		if (livePanel && livePanel !== this) await livePanel.deactivate();
 		claimLive(this);
 
-		const win = frameWindow(this.el);
 		const jsUrl = this.plugin.app.vault.adapter.getResourcePath(this.plugin.calculatorJsPath);
+		await this.mount({ url: jsUrl });
+	}
+
+	/**
+	 * Build the live frame. If it never reports ready, the script could not run
+	 * from a referenced URL, so it is rebuilt once with the bundle embedded. That
+	 * is the arrangement the community Desmos plugin uses and the one that works
+	 * where a blob frame does not inherit the app's origin.
+	 */
+	private async mount(bundle: BundleSource): Promise<void> {
+		const win = frameWindow(this.el);
 		const html = buildLiveDocument(
-			jsUrl,
+			bundle,
 			this.mode,
 			this.block.state ?? {},
 			this.options,
@@ -323,6 +363,7 @@ export class Panel {
 		this.onFrameMessage = (ev: MessageEvent) => {
 			const d = ev.data as { t?: string; nonce?: string };
 			if (!d || d.t !== 'desmos-live-ready' || d.nonce !== this.nonce) return;
+			win.clearTimeout(this.readyTimer);
 			this.ready = true;
 			// Anything dragged while the engine was booting is applied on arrival,
 			// so a slider grabbed immediately does not lose its movement.
@@ -343,6 +384,35 @@ export class Panel {
 			attr: { src: url, style: 'width:100%;height:100%;border:none;display:block;' },
 		});
 		this.frame.addEventListener('load', () => win.URL.revokeObjectURL(url), { once: true });
+
+		this.readyTimer = win.setTimeout(() => {
+			if (this.ready || !this.frame) return;
+			void this.retryInline();
+		}, FRAME_TIMEOUT_MS);
+	}
+
+	private async retryInline(): Promise<void> {
+		const source = await this.plugin.bundleSource();
+		this.teardownFrame();
+		if (!source) {
+			this.graphEl.createDiv({
+				cls: 'desmos-live-error',
+				text: 'Desmos Live: the calculator could not be loaded.',
+			});
+			return;
+		}
+		await this.mount({ source });
+	}
+
+	private teardownFrame(): void {
+		const win = frameWindow(this.el);
+		win.clearTimeout(this.readyTimer);
+		if (this.onFrameMessage) win.removeEventListener('message', this.onFrameMessage);
+		this.onFrameMessage = undefined;
+		this.frame?.remove();
+		this.frame = undefined;
+		this.ready = false;
+		this.graphEl.empty();
 	}
 
 	async deactivate(): Promise<void> {
