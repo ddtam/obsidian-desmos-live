@@ -67,6 +67,7 @@ export class Panel {
 	private readonly options: Record<string, unknown>;
 	private readonly background: string;
 	private readonly palette: Palette;
+	private readonly themed: boolean;
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -83,6 +84,7 @@ export class Panel {
 	) {
 		const state = block.state ?? {};
 		const { height, mode: _mode, ...blockOptions } = block.options ?? {};
+		this.themed = plugin.settings.followTheme;
 		this.palette = readPalette(el);
 		this.background = this.palette.background;
 		this.mode = forcedMode ?? detectMode(state);
@@ -105,9 +107,14 @@ export class Panel {
 
 		const px = height ?? plugin.settings.defaultHeight;
 		const root = el.createDiv({ cls: 'desmos-live-panel' });
+		// The live view is a canvas coloured by the config; the static image is SVG
+		// coloured by stylesheet. Both hang off this one class so they cannot end
+		// up themed differently, which is what happened when only the config half
+		// was conditional.
+		if (plugin.settings.followTheme) root.addClass('is-themed');
 		this.graphEl = root.createDiv({ cls: 'desmos-live-graph' });
 		this.graphEl.style.height = `${px}px`;
-		this.graphEl.style.background = this.background;
+		if (plugin.settings.followTheme) this.graphEl.style.background = this.background;
 		this.renderControls(root);
 
 		panels.add(this);
@@ -203,7 +210,7 @@ export class Panel {
 				this.block.state ?? {},
 				this.options,
 				this.mode,
-				this.palette,
+				this.themed ? this.palette : null,
 				this.graphEl.clientWidth,
 				this.graphEl.clientHeight,
 			]),
@@ -231,7 +238,7 @@ export class Panel {
 				this.mode,
 				this.block.state ?? {},
 				this.options,
-				this.palette,
+				this.themed ? this.palette : undefined,
 				nonce,
 			);
 			const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
@@ -267,7 +274,7 @@ export class Panel {
 			this.mode,
 			this.block.state ?? {},
 			this.options,
-			this.palette,
+			this.themed ? this.palette : undefined,
 			this.nonce,
 		);
 		const url = win.URL.createObjectURL(new win.Blob([html], { type: 'text/html' }));
