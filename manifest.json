@@ -1,0 +1,9 @@
+{
+  "id": "desmos-live",
+  "name": "Desmos Live",
+  "version": "1.1.0-plus.1",
+  "minAppVersion": "1.7.2",
+  "description": "Embed live interactive Desmos graphs (2D and 3D) using desmos-live code blocks.",
+  "author": "notnilc-n, forked by Derek Tam",
+  "isDesktopOnly": true
+}
