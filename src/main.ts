@@ -117,9 +117,11 @@ export default class DesmosLivePlugin extends Plugin {
 				await this.app.vault.adapter.mkdir(this.cacheDir);
 			}
 			await this.app.vault.adapter.write(`${this.cacheDir}/${key}.svg`, svg);
-		} catch {
-			// Caching is an optimisation; failing to write one costs a re-render
-			// and nothing else.
+		} catch (e) {
+			// Caching is an optimisation, so a failure is not fatal. It is still worth
+			// saying: silently failing to write looks exactly like a cache that never
+			// hits, and that is a re-render on every open rather than a one-off cost.
+			console.error('Desmos Live: could not write the image cache', e);
 		}
 	}
 }

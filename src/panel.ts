@@ -326,17 +326,33 @@ export class Panel {
 		}
 	}
 
+	/**
+	 * What the picture depends on, which is not the pixel width. Desmos derives the
+	 * y range from the x range and the frame's aspect ratio, so only the ratio
+	 * changes what is drawn; the SVG carries a viewBox and scales to whatever box
+	 * it lands in. Keying on raw pixels therefore missed the cache on every window
+	 * resize, sidebar toggle and change of device, and re-shot the graph each time.
+	 *
+	 * Rounding to two decimals leaves at most a half-percent of distortion, which
+	 * is invisible, and collapses the jitter into one entry.
+	 */
+	private shotGeometry(): { width: number; height: number; aspect: number } {
+		const height = this.graphEl.clientHeight || 400;
+		const width = this.graphEl.clientWidth || 600;
+		const aspect = Math.round((width / height) * 100) / 100;
+		return { width: Math.round(height * aspect), height, aspect };
+	}
+
 	private async staticSvg(): Promise<string | undefined> {
-		// Geometry is part of the key: Desmos expands an axis to fill its frame, so
-		// the same state at a different width is a different picture.
+		const { height, aspect } = this.shotGeometry();
 		const key = hash(
 			JSON.stringify([
 				this.state,
 				this.options,
 				this.mode,
 				this.themed ? this.palette : null,
-				this.graphEl.clientWidth,
-				this.graphEl.clientHeight,
+				aspect,
+				height,
 			]),
 		);
 		const cached = await this.plugin.readCache(key);
@@ -369,12 +385,9 @@ export class Panel {
 			const win = frameWindow(this.el);
 			const nonce = Math.random().toString(36).slice(2);
 
-			// Shoot at the panel's own geometry, so the image matches both the box
-			// it is drawn into and the live view that replaces it. Desmos expands an
-			// axis to fill whatever frame it gets, so a wrong size is a wrong picture
-			// rather than merely a rescaled one.
-			const width = this.graphEl.clientWidth || 600;
-			const height = this.graphEl.clientHeight || 400;
+			// Shoot at the bucketed geometry rather than the measured one, so the
+			// image cached under a given key is the image that key describes.
+			const { width, height } = this.shotGeometry();
 
 			const html = buildShotDocument(
 				bundle,
