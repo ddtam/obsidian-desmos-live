@@ -398,7 +398,14 @@ export class Panel {
 				nonce,
 				{ width, height },
 			);
-			const style = `position:absolute;left:-10000px;top:0;border:none;width:${Math.round(width)}px;height:${Math.round(height)}px;`;
+			// Rendered in place inside the panel rather than parked off-screen. A
+			// mobile webview does not lay out or paint content 10,000px outside the
+			// viewport, so the calculator never rendered there and the screenshot
+			// never came back, while the live frame, being in place, was fine.
+			// Transparent and inert, so it is invisible while it works.
+			const style =
+				`position:absolute;inset:0;border:none;opacity:0;pointer-events:none;` +
+				`width:${Math.round(width)}px;height:${Math.round(height)}px;`;
 
 			let shot: HTMLIFrameElement | undefined;
 			let release = () => {};
@@ -425,7 +432,7 @@ export class Panel {
 				this.shotError = `timed out after ${SHOT_TIMEOUT_MS / 1000}s`;
 				done(undefined);
 			}, SHOT_TIMEOUT_MS);
-			shot = this.el.ownerDocument.body.createEl('iframe', { attr: { style } });
+			shot = this.graphEl.createEl('iframe', { attr: { style } });
 			release = deliver(shot, html, delivery, win);
 		});
 	}
