@@ -58,7 +58,7 @@
 
 .desmos-live-control {
 	display: grid;
-	grid-template-columns: minmax(2.5em, auto) 1fr minmax(3.5em, auto);
+	grid-template-columns: minmax(2.5em, auto) 1fr 5em;
 	align-items: center;
 	gap: var(--size-4-2);
 }
@@ -73,13 +73,40 @@
 	color: var(--text-normal);
 }
 
-.desmos-live-value {
+/* The value is typed as well as dragged, so it is an input rather than text.
+   Styled to sit quietly until it is used: no chrome at rest, Obsidian's own
+   focus treatment when it is being edited. */
+input.desmos-live-value {
 	font-family: var(--font-monospace);
 	color: var(--text-muted);
 	text-align: right;
 	font-size: var(--font-smaller);
 	/* Tabular figures so a changing value does not shift the slider beside it. */
 	font-variant-numeric: tabular-nums;
+	width: 100%;
+	min-width: 0;
+	padding: 2px 4px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-s);
+	background: transparent;
+}
+
+input.desmos-live-value:hover {
+	border-color: var(--background-modifier-border);
+}
+
+input.desmos-live-value:focus {
+	color: var(--text-normal);
+	border-color: var(--interactive-accent);
+	background: var(--background-primary);
+	outline: none;
+}
+
+/* The spinners crowd a narrow column and the slider already covers stepping. */
+input.desmos-live-value::-webkit-inner-spin-button,
+input.desmos-live-value::-webkit-outer-spin-button {
+	appearance: none;
+	margin: 0;
 }
 
 /* The static image is inline SVG in the note, so Desmos's own graphpaper classes

@@ -232,24 +232,61 @@ export class Panel {
 		if (this.sliders.length === 0 || this.panelMode === 'figure') return;
 		const box = root.createDiv({ cls: 'desmos-live-controls' });
 
-		for (const s of this.sliders) {
+		for (const spec of this.sliders) {
 			const row = box.createDiv({ cls: 'desmos-live-control' });
-			row.createSpan({ cls: 'desmos-live-symbol', text: labelFor(s.symbol) });
-			const input = row.createEl('input', {
-				attr: { type: 'range', min: String(s.min), max: String(s.max), step: String(s.step) },
-			});
-			input.value = String(s.value);
-			const readout = row.createSpan({ cls: 'desmos-live-value', text: formatValue(s.value, s.step) });
+			row.createSpan({ cls: 'desmos-live-symbol', text: labelFor(spec.symbol) });
 
-			input.addEventListener('input', () => {
-				const v = Number.parseFloat(input.value);
-				readout.setText(formatValue(v, s.step));
-				this.set(s, v);
+			const range = row.createEl('input', {
+				attr: {
+					type: 'range',
+					min: String(spec.min),
+					max: String(spec.max),
+					step: String(spec.step),
+				},
 			});
-			// Grabbing a slider is itself a request to interact, so it activates
-			// rather than requiring the reader to find a separate control first.
-			input.addEventListener('pointerdown', () => void this.activate());
+			range.value = String(spec.value);
 
+			// Typed as well as dragged, which is the affordance Desmos's own
+			// expression list has: a slider cannot land on an exact value, and an
+			// exact value is what a worked check needs.
+			const field = row.createEl('input', {
+				cls: 'desmos-live-value',
+				attr: {
+					type: 'number',
+					min: String(spec.min),
+					max: String(spec.max),
+					step: String(spec.step),
+				},
+			});
+			field.value = formatValue(spec.value, spec.step);
+
+			const apply = (raw: number, echo: HTMLInputElement) => {
+				const value = Math.min(spec.max, Math.max(spec.min, raw));
+				echo.value = echo === field ? String(value) : formatValue(value, spec.step);
+				this.set(spec, value);
+			};
+
+			range.addEventListener('input', () => {
+				const v = Number.parseFloat(range.value);
+				if (Number.isFinite(v)) apply(v, field);
+			});
+			// Committed on change rather than on every keystroke, so a half-typed
+			// number is not clamped out from under the cursor.
+			field.addEventListener('change', () => {
+				const v = Number.parseFloat(field.value);
+				if (!Number.isFinite(v)) {
+					field.value = formatValue(Number.parseFloat(range.value), spec.step);
+					return;
+				}
+				const clamped = Math.min(spec.max, Math.max(spec.min, v));
+				range.value = String(clamped);
+				apply(clamped, range);
+			});
+
+			for (const el of [range, field]) {
+				el.addEventListener('pointerdown', () => void this.activate());
+			}
+			field.addEventListener('focus', () => void this.activate());
 		}
 	}
 
