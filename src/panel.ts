@@ -1,6 +1,7 @@
 import { buildLiveDocument, buildShotDocument, detectMode, sanitiseColour } from './utils/calculatorDocument';
+import { finishRenderMath, renderMath } from 'obsidian';
 import { normaliseColours } from './utils/colours';
-import { formatValue, labelFor, parseSliders } from './utils/sliders';
+import { formatValue, parseSliders } from './utils/sliders';
 import type DesmosLivePlugin from './main';
 import type {
 	BundleSource,
@@ -155,6 +156,7 @@ export class Panel {
 	private readonly palette: Palette;
 	private readonly themed: boolean;
 	private readonly state: DesmosState;
+	private readonly sliderLabels: Record<string, string>;
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -174,7 +176,8 @@ export class Panel {
 		forcedMode?: CalculatorMode,
 	) {
 		const raw = block.state ?? {};
-		const { height, mode: _mode, ...blockOptions } = block.options ?? {};
+		const { height, mode: _mode, sliderLabels, ...blockOptions } = block.options ?? {};
+		this.sliderLabels = sliderLabels ?? {};
 		this.themed = plugin.settings.followTheme;
 		this.palette = readPalette(el);
 		this.background = this.palette.background;
@@ -220,6 +223,7 @@ export class Panel {
 		this.graphEl.style.height = `${px}px`;
 		if (plugin.settings.followTheme) this.graphEl.style.background = this.background;
 		this.renderControls(root);
+		void finishRenderMath();
 
 		panels.add(this);
 	}
@@ -234,7 +238,17 @@ export class Panel {
 
 		for (const spec of this.sliders) {
 			const row = box.createDiv({ cls: 'desmos-live-control' });
-			row.createSpan({ cls: 'desmos-live-symbol', text: labelFor(spec.symbol) });
+
+			// The symbol is rendered as maths rather than as text, so `p_{j}` and
+			// `\lambda` appear the way the prose writes them. A control labelled
+			// with a letter the surrounding text never uses is a control the reader
+			// cannot connect to anything, so a description can be given per slider.
+			const name = row.createSpan({ cls: 'desmos-live-symbol' });
+			name.appendChild(renderMath(spec.symbol, false));
+			const described = this.sliderLabels[spec.id];
+			if (described) {
+				name.createSpan({ cls: 'desmos-live-describe', text: described });
+			}
 
 			const range = row.createEl('input', {
 				attr: {

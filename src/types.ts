@@ -49,6 +49,8 @@ export interface DesmosState {
 export type CalculatorOptions = Record<string, unknown> & {
 	height?: number;
 	mode?: PanelMode;
+	/** Expression id to a plain-language description, shown beside the symbol. */
+	sliderLabels?: Record<string, string>;
 };
 
 /**

@@ -69,8 +69,21 @@
 }
 
 .desmos-live-symbol {
-	font-family: var(--font-monospace);
+	display: flex;
+	align-items: baseline;
+	gap: var(--size-4-2);
 	color: var(--text-normal);
+	white-space: nowrap;
+}
+
+/* KaTeX sets its own size; match the surrounding controls. */
+.desmos-live-symbol .math {
+	font-size: inherit;
+}
+
+.desmos-live-describe {
+	color: var(--text-muted);
+	font-size: var(--font-smaller);
 }
 
 /* The value is typed as well as dragged, so it is an input rather than text.

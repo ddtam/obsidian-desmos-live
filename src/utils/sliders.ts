@@ -54,27 +54,6 @@ export function parseSliders(state: DesmosState): SliderSpec[] {
 	return sliders;
 }
 
-/**
- * Desmos writes subscripts as `p_{j}`, which is unreadable as a control label.
- * Unicode subscripts cover the digits and enough lowercase letters to carry the
- * names actually used; anything outside that set keeps its braces rather than
- * being silently mangled.
- */
-const SUBSCRIPTS: Record<string, string> = {
-	'0': '₀', '1': '₁', '2': '₂', '3': '₃', '4': '₄',
-	'5': '₅', '6': '₆', '7': '₇', '8': '₈', '9': '₉',
-	a: 'ₐ', e: 'ₑ', h: 'ₕ', i: 'ᵢ', j: 'ⱼ', k: 'ₖ', l: 'ₗ',
-	m: 'ₘ', n: 'ₙ', o: 'ₒ', p: 'ₚ', r: 'ᵣ', s: 'ₛ', t: 'ₜ',
-	u: 'ᵤ', v: 'ᵥ', x: 'ₓ',
-};
-
-export function labelFor(symbol: string): string {
-	return symbol.replace(/_\{([^}]*)\}/g, (whole, inner: string) => {
-		const mapped = [...inner].map(c => SUBSCRIPTS[c]);
-		return mapped.every(Boolean) ? mapped.join('') : whole;
-	});
-}
-
 /** Enough decimals to show the step moving, and no more. */
 export function formatValue(value: number, step: number): string {
 	const decimals = step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step)));

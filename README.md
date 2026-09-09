@@ -88,7 +88,23 @@ A running Desmos calculator is not cheap: each one is a JS heap, a Web Worker, c
 
 Sliders are drawn by the plugin rather than by Desmos, below the graph. This is not a style choice: a Desmos screenshot captures the graphpaper only, so a panel showing Desmos's own expression list renders about 320px narrower than its own static image and the graph would visibly reflow the moment it was activated. Plugin-drawn controls are the same elements in both states, so activation changes nothing but the pixels. Dragging a slider activates the panel by itself, and movement made while the engine boots is applied when it arrives.
 
-Any expression defining a single symbol (`a=1`, `p_{j}=0.3`) becomes a slider, taking its range from the expression's `slider` key when it has one.
+Any expression defining a single symbol (`a=1`, `p_{j}=0.3`) becomes a slider, taking its range from the expression's `slider` key when it has one. The symbol is typeset as maths, so `p_{j}` and `\lambda` read the way the prose around them writes it.
+
+**Never name a slider `x`, `y`, `r` or `theta`.** Desmos owns those: `r=1` is a unit circle in polar coordinates, not a parameter, and it draws one. The plugin refuses them a slider, so the symptom is a missing control beside a shape nobody asked for.
+
+A letter alone often does not say what it controls. `sliderLabels` maps an expression's `id` to a description, shown beside the symbol:
+
+```json
+{
+  "options": {
+    "sliderLabels": { "lam": "mean", "n": "trials" }
+  },
+  "state": { "expressions": { "list": [
+    { "type": "expression", "id": "lam", "latex": "\\lambda=8" },
+    { "type": "expression", "id": "n", "latex": "n=40" }
+  ] } }
+}
+```
 
 Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options, theme and the panel's aspect ratio, so they are regenerated per device rather than synced around as a second copy of a figure. Pixel width is deliberately not part of the key: only the aspect ratio changes what Desmos draws, and keying on width would miss the cache on every resize.
 
