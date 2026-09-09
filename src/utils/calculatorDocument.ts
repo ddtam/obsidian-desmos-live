@@ -129,6 +129,7 @@ export function buildShotDocument(
 	options: Record<string, unknown>,
 	palette: Palette | undefined,
 	nonce: string,
+	size: { width: number; height: number },
 ): string {
 	return SHELL(
 		palette,
@@ -142,7 +143,18 @@ export function buildShotDocument(
   try {
     var Calc = Desmos.${DESMOS_CONSTRUCTOR[mode]}(document.getElementById('calculator'), ${embed(options)});
     Calc.setState(${embed(state)});
-    Calc.asyncScreenshot({ showLabels: true, format: 'svg' }, function (data) {
+    // Size is passed rather than inferred. Left to infer, Desmos also applies
+    // its own rule: under 256px in either dimension it drops the axis numbers,
+    // which reflows the plot area, so a short panel's image would show a
+    // different region from the live calculator beside it. preserveAxisNumbers
+    // turns that off.
+    Calc.asyncScreenshot({
+      showLabels: true,
+      format: 'svg',
+      preserveAxisNumbers: true,
+      width: ${Math.round(size.width)},
+      height: ${Math.round(size.height)}
+    }, function (data) {
       done = true;
       send({ ok: true, svg: String(data) });
     });

@@ -396,6 +396,7 @@ export class Panel {
 				this.options,
 				this.themed ? this.palette : undefined,
 				nonce,
+				{ width, height },
 			);
 			const style = `position:absolute;left:-10000px;top:0;border:none;width:${Math.round(width)}px;height:${Math.round(height)}px;`;
 
