@@ -163,6 +163,8 @@ export class Panel {
 	private onFrameMessage?: (ev: MessageEvent) => void;
 	private readyTimer = 0;
 	private shotError?: string;
+	private renderedAspect?: number;
+	private shapeObserver?: ResizeObserver;
 
 	constructor(
 		private readonly plugin: DesmosLivePlugin,
@@ -270,17 +272,50 @@ export class Panel {
 	 * whichever axis it must to fill the frame, so the two views would show
 	 * different amounts of the graph. Wait for a real width before measuring.
 	 */
-	private async laidOut(): Promise<void> {
-		for (let i = 0; i < 30 && this.graphEl.clientWidth === 0; i++) {
-			await new Promise<void>(resolve => {
-				frameWindow(this.el).requestAnimationFrame(() => resolve());
+	private whenSized(): Promise<void> {
+		if (this.graphEl.clientWidth > 0) return Promise.resolve();
+		return new Promise(resolve => {
+			const win = frameWindow(this.el);
+			let settled = false;
+			const finish = () => {
+				if (settled) return;
+				settled = true;
+				observer.disconnect();
+				win.clearTimeout(timer);
+				resolve();
+			};
+			const observer = new win.ResizeObserver(() => {
+				if (this.graphEl.clientWidth > 0) finish();
 			});
-		}
+			observer.observe(this.graphEl);
+			// Only a backstop. Waiting forever would leave a panel blank if the
+			// element is never shown; the fallback geometry is wrong but visible.
+			const timer = win.setTimeout(finish, 15000);
+		});
+	}
+
+	/**
+	 * Redraw if the panel's shape changes enough to change the picture. Desmos
+	 * derives the y range from the aspect ratio, so a panel that was drawn at one
+	 * ratio and is now displayed at another is not merely rescaled, it is framed
+	 * differently. Compared against the bucket actually rendered, so ordinary
+	 * pixel jitter does not trigger anything.
+	 */
+	private watchShape(): void {
+		if (this.shapeObserver) return;
+		const win = frameWindow(this.el);
+		this.shapeObserver = new win.ResizeObserver(() => {
+			if (this.frame || this.graphEl.clientWidth === 0) return;
+			if (this.shotGeometry().aspect === this.renderedAspect) return;
+			void this.renderStatic();
+		});
+		this.shapeObserver.observe(this.graphEl);
 	}
 
 	/** Draw the cached SVG, rendering and caching it first if necessary. */
 	async renderStatic(): Promise<void> {
-		await this.laidOut();
+		await this.whenSized();
+		this.renderedAspect = this.shotGeometry().aspect;
 		const svg = await this.staticSvg();
 		if (!this.graphEl.isConnected || this.frame) return;
 		this.graphEl.empty();
@@ -319,6 +354,8 @@ export class Panel {
 		node.removeAttribute('width');
 		node.removeAttribute('height');
 		this.graphEl.appendChild(node);
+
+		this.watchShape();
 
 		if (this.panelMode === 'interactive') {
 			this.graphEl.addClass('is-activatable');
@@ -537,6 +574,8 @@ export class Panel {
 	}
 
 	destroy(): void {
+		this.shapeObserver?.disconnect();
+		this.shapeObserver = undefined;
 		if (this.onFrameMessage) frameWindow(this.el).removeEventListener('message', this.onFrameMessage);
 		releaseLive(this);
 		panels.delete(this);
