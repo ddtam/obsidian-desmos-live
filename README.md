@@ -90,7 +90,9 @@ Sliders are drawn by the plugin rather than by Desmos, below the graph. This is 
 
 Any expression defining a single symbol (`a=1`, `p_{j}=0.3`) becomes a slider, taking its range from the expression's `slider` key when it has one.
 
-Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options and theme, so they are regenerated per device rather than synced around as a second copy of a figure.
+Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options, theme and the panel's aspect ratio, so they are regenerated per device rather than synced around as a second copy of a figure. Pixel width is deliberately not part of the key: only the aspect ratio changes what Desmos draws, and keying on width would miss the cache on every resize.
+
+Clear them from **Cached graph images** in settings, or with the **Clear cached graph images** command. They are regenerated on demand, so clearing costs a redraw and nothing else.
 
 ### Theme
 

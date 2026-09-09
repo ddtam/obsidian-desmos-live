@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from 'obsidian';
+import { App, Notice, PluginSettingTab, Setting } from 'obsidian';
 import type DesmosLivePlugin from './main';
 import type { DesmosLiveSettings, PanelMode } from './types';
 
@@ -34,9 +34,32 @@ export class DesmosLiveSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	/** Counting reads the folder, so the row is built first and filled in after. */
+	private showCount(setting: Setting): void {
+		void this.plugin.cacheCount().then(n => {
+			setting.setDesc(
+				`${n} rendered ${n === 1 ? 'image' : 'images'} held in the plugin folder. ` +
+					'They are regenerated on demand, so clearing them costs a redraw and ' +
+					'nothing else. Worth doing after a change the cache key does not cover.',
+			);
+		});
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
+
+		const cache = new Setting(containerEl)
+			.setName('Cached graph images')
+			.setDesc('Counting...')
+			.addButton(button =>
+				button.setButtonText('Clear').onClick(async () => {
+					const n = await this.plugin.clearCache();
+					new Notice(`Desmos Live: cleared ${n} cached ${n === 1 ? 'image' : 'images'}.`);
+					this.showCount(cache);
+				}),
+			);
+		this.showCount(cache);
 
 		new Setting(containerEl)
 			.setName('Desmos API key')

@@ -39,6 +39,16 @@ export default class DesmosLivePlugin extends Plugin {
 		// invertedColors is fixed when the calculator is constructed, so a theme
 		// change means rebuilding the frames rather than restyling them.
 		this.registerEvent(this.app.workspace.on('css-change', () => rerenderAll(this)));
+
+		this.addCommand({
+			id: 'clear-image-cache',
+			name: 'Clear cached graph images',
+			callback: () => {
+				void this.clearCache().then(n => {
+					new Notice(`Desmos Live: cleared ${n} cached ${n === 1 ? 'image' : 'images'}.`);
+				});
+			},
+		});
 	}
 
 	onunload(): void {
@@ -94,6 +104,45 @@ export default class DesmosLivePlugin extends Plugin {
 			return undefined;
 		}
 		return this.bundleText;
+	}
+
+	/** How many images are cached, for a settings pane that says what it will delete. */
+	async cacheCount(): Promise<number> {
+		if (!this.cacheDir) return 0;
+		const adapter = this.app.vault.adapter;
+		if (!(await adapter.exists(this.cacheDir))) return 0;
+		try {
+			const listing = await adapter.list(this.cacheDir);
+			return listing.files.filter(f => f.endsWith('.svg')).length;
+		} catch {
+			return 0;
+		}
+	}
+
+	/**
+	 * Delete the cached images. Only `.svg` files directly inside the plugin's own
+	 * cache folder are touched, so a mistyped or stale path cannot take anything
+	 * else with it, and the folder itself is left in place.
+	 */
+	async clearCache(): Promise<number> {
+		if (!this.cacheDir?.endsWith('/cache')) return 0;
+		const adapter = this.app.vault.adapter;
+		if (!(await adapter.exists(this.cacheDir))) return 0;
+
+		let removed = 0;
+		try {
+			const listing = await adapter.list(this.cacheDir);
+			for (const file of listing.files) {
+				if (!file.endsWith('.svg')) continue;
+				await adapter.remove(file);
+				removed++;
+			}
+		} catch (e) {
+			console.error('Desmos Live: could not clear the image cache', e);
+		}
+		// Panels holding a now-deleted image redraw rather than waiting for a reopen.
+		rerenderAll(this);
+		return removed;
 	}
 
 	async readCache(key: string): Promise<string | undefined> {
