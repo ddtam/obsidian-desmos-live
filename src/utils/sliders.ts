@@ -14,6 +14,13 @@ interface StateExpression {
  */
 const DEFINITION = /^([^=]+)=\s*(-?[0-9.]+)\s*$/;
 
+/**
+ * Symbols the graph itself owns. `y=2` and `x=0` are lines, not parameters, and
+ * Desmos offers no slider for them either; treating one as a slider puts a
+ * control under the panel that changes nothing a reader would expect.
+ */
+const PLOTTING = new Set(['x', 'y', 'r', '\\theta', 'theta']);
+
 const num = (value: string | undefined, fallback: number): number => {
 	const n = Number.parseFloat(value ?? '');
 	return Number.isFinite(n) ? n : fallback;
@@ -27,6 +34,7 @@ export function parseSliders(state: DesmosState): SliderSpec[] {
 		if (!expr || typeof expr.latex !== 'string' || typeof expr.id !== 'string') continue;
 		const match = DEFINITION.exec(expr.latex);
 		if (!match || match[1] === undefined || match[2] === undefined) continue;
+		if (PLOTTING.has(match[1].trim())) continue;
 
 		// Desmos's own default range when an expression carries no explicit bounds.
 		const min = num(expr.slider?.min, -10);
