@@ -50,17 +50,20 @@
 	opacity: 1;
 }
 
+/* One grid for the whole stack, not one per row. Grid tracks are shared down
+   the column, so every range input starts and ends at the same x however long
+   its description is; a grid per row sized its own first column and left the
+   sliders ragged. */
 .desmos-live-controls {
-	display: flex;
-	flex-direction: column;
-	gap: var(--size-4-1);
+	display: grid;
+	grid-template-columns: auto 1fr 5em;
+	align-items: center;
+	column-gap: var(--size-4-2);
+	row-gap: var(--size-4-1);
 }
 
 .desmos-live-control {
-	display: grid;
-	grid-template-columns: minmax(2.5em, auto) 1fr 5em;
-	align-items: center;
-	gap: var(--size-4-2);
+	display: contents;
 }
 
 .desmos-live-control input[type="range"] {
@@ -74,6 +77,7 @@
 	gap: var(--size-4-2);
 	color: var(--text-normal);
 	white-space: nowrap;
+	min-width: 2.5em;
 }
 
 /* KaTeX sets its own size; match the surrounding controls. */
@@ -84,6 +88,8 @@
 .desmos-live-describe {
 	color: var(--text-muted);
 	font-size: var(--font-smaller);
+	max-width: 12em;
+	white-space: normal;
 }
 
 /* The value is typed as well as dragged, so it is an input rather than text.

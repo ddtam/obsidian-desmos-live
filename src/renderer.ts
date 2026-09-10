@@ -1,3 +1,4 @@
+import { loadMathJax } from 'obsidian';
 import { Panel, connectedPanels, forgetPanels } from './panel';
 import type DesmosLivePlugin from './main';
 import type { CalculatorMode, DesmosBlock, PanelMode } from './types';
@@ -23,12 +24,12 @@ function parseBlock(source: string): DesmosBlock {
 	return { state: parsed };
 }
 
-export function renderBlock(
+export async function renderBlock(
 	source: string,
 	el: HTMLElement,
 	plugin: DesmosLivePlugin,
 	forcedMode?: CalculatorMode,
-): void {
+): Promise<void> {
 	let block: DesmosBlock;
 	try {
 		block = parseBlock(source);
@@ -49,6 +50,8 @@ export function renderBlock(
 	}
 	const mode = requested ?? plugin.settings.defaultMode;
 
+	await loadMathJax();
+
 	const panel = new Panel(plugin, el, block, mode, forcedMode);
 	if (mode === 'live') void panel.activate();
 	else void panel.renderStatic();
@@ -66,7 +69,7 @@ export function rerenderAll(plugin: DesmosLivePlugin): void {
 		const forced = el.dataset.desmosLiveForced as CalculatorMode | undefined;
 		panel.destroy();
 		el.empty();
-		if (source !== undefined) renderBlock(source, el, plugin, forced);
+		if (source !== undefined) void renderBlock(source, el, plugin, forced);
 	}
 }
 
@@ -76,12 +79,12 @@ export function clearRendered(): void {
 
 export function registerDesmosRenderers(plugin: DesmosLivePlugin): void {
 	const register = (fence: string, forced?: CalculatorMode) => {
-		plugin.registerMarkdownCodeBlockProcessor(fence, (source, el) => {
+		plugin.registerMarkdownCodeBlockProcessor(fence, async (source, el) => {
 			// Stashed so a theme change can rebuild the panel from its own source
 			// rather than the plugin holding a parallel registry that can go stale.
 			el.dataset.desmosLiveSource = source;
 			if (forced) el.dataset.desmosLiveForced = forced;
-			renderBlock(source, el, plugin, forced);
+			await renderBlock(source, el, plugin, forced);
 		});
 	};
 
