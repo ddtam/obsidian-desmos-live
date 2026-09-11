@@ -60,19 +60,30 @@ export function graphpaperCss(palette: Palette): string {
  * colours the numbers and not the lines, so on a dark theme the live axes
  * vanish while the stylesheet keeps the static image's legible. The canvas is
  * the only seam. Before the bundle loads, the context's colour setters are
- * wrapped so exact black at any alpha becomes the theme's text colour at that
- * alpha, the substitution normaliseColours makes for a black expression.
+ * wrapped so exact black is recoloured the way `graphpaperCss` recolours the
+ * screenshot: the screenshot keeps each line's stroke-opacity and replaces
+ * only its colour, text for axes and ticks, gridline for the grid. The painter
+ * is shared, so the alphas already agree, and the class the stylesheet keys on
+ * is recovered from the alpha: axes, ticks and arrows are drawn at
+ * `axisOpacity`, 0.9 in this bundle, and every grid line at something else.
  * Everything an expression or the config supplies is hex and passes untouched.
  */
 export function canvasThemeScript(palette: Palette): string {
-	const hex = palette.text.replace('#', '');
-	const rgb = [0, 2, 4].map(i => Number.parseInt(hex.slice(i, i + 2), 16));
-	if (hex.length !== 6 || rgb.some(c => !Number.isFinite(c))) return '';
+	const channels = (colour: string): string | undefined => {
+		const hex = colour.replace('#', '');
+		const rgb = [0, 2, 4].map(i => Number.parseInt(hex.slice(i, i + 2), 16));
+		if (hex.length !== 6 || rgb.some(c => !Number.isFinite(c))) return undefined;
+		return rgb.join(',');
+	};
+	const text = channels(palette.text);
+	const grid = channels(palette.gridline);
+	if (!text || !grid) return '';
 	return `<script>
 (function () {
   var proto = window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype;
   if (!proto) return;
   var black = /^rgba\\(0,0,0,([0-9.]+)\\)$/;
+  var AXIS_OPACITY = '0.9';
   ['strokeStyle', 'fillStyle'].forEach(function (name) {
     var own = Object.getOwnPropertyDescriptor(proto, name);
     if (!own || !own.set || !own.get) return;
@@ -82,7 +93,11 @@ export function canvasThemeScript(palette: Palette): string {
       get: own.get,
       set: function (v) {
         var m = typeof v === 'string' ? black.exec(v) : null;
-        own.set.call(this, m ? 'rgba(${rgb.join(',')},' + m[1] + ')' : v);
+        if (m) {
+          var rgb = m[1] === AXIS_OPACITY ? '${text}' : '${grid}';
+          v = 'rgba(' + rgb + ',' + m[1] + ')';
+        }
+        own.set.call(this, v);
       }
     });
   });
