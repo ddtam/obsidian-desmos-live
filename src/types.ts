@@ -54,9 +54,10 @@ export type CalculatorOptions = Record<string, unknown> & {
 	/**
 	 * Expression id to a description, for values the graph computes. Each named
 	 * expression must define a symbol, `L=...`, and its value is shown read-only
-	 * under the graph.
+	 * under the graph. The object form colours the row's symbol: a hex, or the id
+	 * of the expression the value belongs to, whose own colour is then used.
 	 */
-	readouts?: Record<string, string>;
+	readouts?: Record<string, string | ReadoutOption>;
 	/**
 	 * Named windows onto the graph, drawn as buttons under it. The first is the
 	 * one the image is drawn at and the calculator boots into.
@@ -99,9 +100,17 @@ export interface ViewSpec {
 	yAxisScale?: 'linear' | 'logarithmic';
 }
 
+/** A readout written with a colour, tying its row to an element on the graph. */
+export interface ReadoutOption {
+	label: string;
+	color?: string;
+}
+
 /** A value the graph computes, shown read-only under it. */
 export interface ReadoutSpec {
 	id: string;
 	symbol: string;
 	describe: string;
+	/** The symbol's colour, resolved from the block's hex or expression id. */
+	color?: string;
 }

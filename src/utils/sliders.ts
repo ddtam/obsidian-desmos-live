@@ -1,4 +1,4 @@
-import type { DesmosState, ReadoutSpec, SliderSpec } from '../types';
+import type { DesmosState, ReadoutOption, ReadoutSpec, SliderSpec } from '../types';
 
 interface StateExpression {
 	id?: string;
@@ -61,12 +61,42 @@ export function formatValue(value: number, step: number): string {
 }
 
 /**
+ * A readout's description, and its colour if it names one. A colour starting
+ * with `#` is used as written; anything else is an expression id, and that
+ * expression's colour is taken, so the row follows the element it describes
+ * when the graph is recoloured. Block JSON is untrusted, hence `unknown`.
+ */
+function describeReadout(
+	option: unknown,
+	list: StateExpression[],
+): { describe: string; color?: string } {
+	if (typeof option === 'string') return { describe: option };
+	if (!option || typeof option !== 'object') return { describe: '' };
+	const { label, color } = option as { label?: unknown; color?: unknown };
+	const describe = typeof label === 'string' ? label : '';
+	const named = typeof color === 'string' ? color.trim() : '';
+	if (!named) return { describe };
+	if (named.startsWith('#')) return { describe, color: named };
+	for (const expr of list) {
+		if (expr && expr.id === named) {
+			const own = (expr as { color?: unknown }).color;
+			if (typeof own !== 'string') return { describe };
+			return { describe, color: own };
+		}
+	}
+	return { describe };
+}
+
+/**
  * A readout is an expression the block names under `readouts` whose latex defines
  * a symbol, `L=...`. The symbol is what the calculator is asked to evaluate, so an
  * expression that defines nothing has no single value to show and is skipped.
  * Listed in expression order, which is the order an author wrote them in.
  */
-export function parseReadouts(state: DesmosState, described: Record<string, string>): ReadoutSpec[] {
+export function parseReadouts(
+	state: DesmosState,
+	described: Record<string, string | ReadoutOption>,
+): ReadoutSpec[] {
 	const list = (state as { expressions?: { list?: StateExpression[] } }).expressions?.list ?? [];
 	const readouts: ReadoutSpec[] = [];
 
@@ -77,7 +107,7 @@ export function parseReadouts(state: DesmosState, described: Record<string, stri
 		if (!match?.[1]) continue;
 		const symbol = match[1].trim();
 		if (PLOTTING.has(symbol)) continue;
-		readouts.push({ id: expr.id, symbol, describe: described[expr.id] ?? '' });
+		readouts.push({ id: expr.id, symbol, ...describeReadout(described[expr.id], list) });
 	}
 	return readouts;
 }

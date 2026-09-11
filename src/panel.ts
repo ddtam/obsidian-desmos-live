@@ -219,7 +219,6 @@ export class Panel {
 		const raw = block.state ?? {};
 		const { height, mode: _mode, sliderLabels, readouts, views, aspect, ...blockOptions } = block.options ?? {};
 		this.sliderLabels = sliderLabels ?? {};
-		this.readouts = parseReadouts(raw, readouts ?? {});
 		this.views = Array.isArray(views) ? views.filter(v => typeof v?.label === 'string') : [];
 		this.aspect = typeof aspect === 'number' && aspect > 0 ? aspect : undefined;
 		this.themed = plugin.settings.followTheme;
@@ -244,6 +243,9 @@ export class Panel {
 		Object.assign(this.options, blockOptions);
 
 		const normalised = normaliseColours(raw, this.themed ? this.palette.text : undefined);
+		// Read after normalising, so a symbol takes the colour the graph is drawn
+		// in, including a black the theme has replaced.
+		this.readouts = parseReadouts(normalised, readouts ?? {});
 		this.baseGraph = (normalised.graph ?? {}) as unknown as ViewGraph;
 		this.state = applyView(normalised, this.views[0]);
 
@@ -368,12 +370,18 @@ export class Panel {
 	 * Values the graph computes, shown read-only under the sliders. A label on the
 	 * graphpaper has to hang off a point, and a number that belongs to no point, a
 	 * log-likelihood or a p-value, has nowhere honest to sit there. The rows share
-	 * the sliders' grid, so a value lands in the column a slider's value does.
+	 * the sliders' grid, so a value lands in the column a slider's value does. A
+	 * row given a colour draws its symbol in the colour of the element it
+	 * describes, so it names that element without saying "the red dot".
 	 */
 	private renderReadouts(box: HTMLElement): void {
 		for (const spec of this.readouts) {
 			const row = box.createDiv({ cls: 'desmos-live-control desmos-live-readout' });
 			const name = row.createSpan({ cls: 'desmos-live-symbol' });
+			if (spec.color) {
+				name.addClass('has-colour');
+				name.setCssProps({ '--desmos-live-readout-colour': spec.color });
+			}
 			name.appendChild(renderMath(spec.symbol, false));
 			if (spec.describe) {
 				name.createSpan({ cls: 'desmos-live-describe', text: spec.describe });

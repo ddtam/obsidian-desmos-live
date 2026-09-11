@@ -123,6 +123,15 @@ A value the graph computes, such as a log-likelihood, a p-value or an eigenvalue
 
 Before a panel is activated its rows show the values at the state the image was drawn at, read during the screenshot and cached beside it as JSON; after activation they come from the live calculator. A value Desmos cannot compute reads `n/a`. A figure-mode panel keeps its readouts and drops its sliders, since nothing can move them.
 
+A row that describes one element of the graph, a dot, a shaded area or a line, can say which through colour rather than words. Write the readout as an object with a `label` and a `color`, where the colour is a hex or, better, the id of the expression it describes; the row's symbol is then drawn in that colour. An id takes the expression's colour as drawn, so the row follows the element if the graph is recoloured, and a black the theme replaces is replaced in the symbol too. A colour that resolves to nothing leaves the symbol in the normal text colour.
+
+```json
+"readouts": {
+  "P": { "label": "p-value", "color": "tail" },
+  "N": "the same under the normal approximation"
+}
+```
+
 A graph whose lesson lives in two windows, say the bulk of a distribution and its far tail, can name them. `views` is a list of windows, each with a label, bounds merged over the graph's own viewport, and optional `xAxisScale` or `yAxisScale` of `linear` or `logarithmic`. Each becomes a button under the graph. The first view is the one the image is drawn at and the calculator boots into; choosing another activates the panel if it is not already live. A log axis needs a positive lower bound.
 
 ```json

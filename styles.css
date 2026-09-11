@@ -172,6 +172,13 @@ button.desmos-live-view.is-active {
 	white-space: nowrap;
 }
 
+/* A readout given a colour draws its symbol in the colour of the element it
+   describes, the dot, area or line, so the description need not name it. Only
+   the symbol takes it; the description stays muted like every other row's. */
+.desmos-live-symbol.has-colour .math {
+	color: var(--desmos-live-readout-colour);
+}
+
 /* The static image is inline SVG in the note, so Desmos's own graphpaper classes
    are reachable from here. The live frame gets the same rules injected into its
    document, since custom properties do not cross a frame boundary. Retune any of
