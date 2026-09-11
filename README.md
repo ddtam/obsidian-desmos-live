@@ -136,6 +136,8 @@ A graph whose lesson lives in two windows, say the bulk of a distribution and it
 }
 ```
 
+An equal-scale plot, where a 45° line has to read as agreement, needs its frame to keep one shape. Desmos's `squareAxes` keeps the units equal but derives the y range from the frame's pixel shape, so under a fixed `height` the bounds hold at one width only. `aspect` sets the height as a fraction of the width instead, recomputed as the pane resizes; set it to the viewport's y span over its x span, `1` for a unit square, and the bounds are honoured at any width.
+
 Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options, theme and the panel's aspect ratio, so they are regenerated per device rather than synced around as a second copy of a figure. Pixel width is deliberately not part of the key: only the aspect ratio changes what Desmos draws, and keying on width would miss the cache on every resize.
 
 Clear them from **Cached graph images** in settings, or with the **Clear cached graph images** command. They are regenerated on demand, so clearing costs a redraw and nothing else.

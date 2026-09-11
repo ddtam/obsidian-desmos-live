@@ -62,6 +62,12 @@ export type CalculatorOptions = Record<string, unknown> & {
 	 * one the image is drawn at and the calculator boots into.
 	 */
 	views?: ViewSpec[];
+	/**
+	 * Height as a fraction of width, kept as the panel resizes. With square axes,
+	 * set it to the viewport's y span over its x span and both ranges are honoured
+	 * at any width, which an equal-scale plot needs.
+	 */
+	aspect?: number;
 };
 
 /**

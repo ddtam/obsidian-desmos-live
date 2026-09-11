@@ -196,6 +196,8 @@ export class Panel {
 	private readonly baseGraph: ViewGraph;
 	private readonly viewButtons: HTMLButtonElement[] = [];
 	private pendingView?: number;
+	private readonly aspect?: number;
+	private aspectObserver?: ResizeObserver;
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -215,10 +217,11 @@ export class Panel {
 		forcedMode?: CalculatorMode,
 	) {
 		const raw = block.state ?? {};
-		const { height, mode: _mode, sliderLabels, readouts, views, ...blockOptions } = block.options ?? {};
+		const { height, mode: _mode, sliderLabels, readouts, views, aspect, ...blockOptions } = block.options ?? {};
 		this.sliderLabels = sliderLabels ?? {};
 		this.readouts = parseReadouts(raw, readouts ?? {});
 		this.views = Array.isArray(views) ? views.filter(v => typeof v?.label === 'string') : [];
+		this.aspect = typeof aspect === 'number' && aspect > 0 ? aspect : undefined;
 		this.themed = plugin.settings.followTheme;
 		this.palette = readPalette(el);
 		this.background = this.palette.background;
@@ -264,6 +267,14 @@ export class Panel {
 		}
 		this.graphEl = root.createDiv({ cls: 'desmos-live-graph' });
 		this.graphEl.style.height = `${px}px`;
+		if (this.aspect) {
+			// Height follows width. Desmos derives the y range from the frame's shape
+			// under square axes, so a fixed height would honour the bounds at one
+			// width only, and an equal-scale plot would crop on a wider pane.
+			this.aspectObserver = new (frameWindow(el).ResizeObserver)(() => this.fitAspect());
+			this.aspectObserver.observe(this.graphEl);
+			this.fitAspect();
+		}
 		if (plugin.settings.followTheme) this.graphEl.style.background = this.background;
 		this.renderViews(root);
 		this.renderControls(root);
@@ -538,7 +549,19 @@ export class Panel {
 	 * Rounding to two decimals leaves at most a half-percent of distortion, which
 	 * is invisible, and collapses the jitter into one entry.
 	 */
+	/** Set the height from the width, for a panel whose shape is fixed rather than its height. */
+	private fitAspect(): void {
+		if (!this.aspect) return;
+		const width = this.graphEl.clientWidth;
+		if (width === 0) return;
+		const target = `${Math.round(width * this.aspect)}px`;
+		if (this.graphEl.style.height !== target) this.graphEl.style.height = target;
+	}
+
 	private shotGeometry(): { width: number; height: number; aspect: number } {
+		// Fitted first, so an image is never shot at the fallback height the panel
+		// had before its width was known.
+		this.fitAspect();
 		const height = this.graphEl.clientHeight || 400;
 		const width = this.graphEl.clientWidth || 600;
 		const aspect = Math.round((width / height) * 100) / 100;
@@ -768,6 +791,8 @@ export class Panel {
 	}
 
 	destroy(): void {
+		this.aspectObserver?.disconnect();
+		this.aspectObserver = undefined;
 		this.shapeObserver?.disconnect();
 		this.shapeObserver = undefined;
 		if (this.onFrameMessage) frameWindow(this.el).removeEventListener('message', this.onFrameMessage);
