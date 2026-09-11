@@ -128,6 +128,25 @@ input.desmos-live-value::-webkit-outer-spin-button {
 	margin: 0;
 }
 
+/* A readout shares the sliders' grid but is not a control. The dotted leader
+   fills the column a range input would, which marks the row as read-only, and
+   the value sits where a slider's value does. */
+.desmos-live-leader {
+	align-self: center;
+	height: 0;
+	border-bottom: 1px dotted var(--background-modifier-border);
+}
+
+.desmos-live-readout-value {
+	font-family: var(--font-monospace);
+	color: var(--text-normal);
+	text-align: right;
+	font-size: var(--font-smaller);
+	font-variant-numeric: tabular-nums;
+	padding: 2px 4px;
+	white-space: nowrap;
+}
+
 /* The static image is inline SVG in the note, so Desmos's own graphpaper classes
    are reachable from here. The live frame gets the same rules injected into its
    document, since custom properties do not cross a frame boundary. Retune any of

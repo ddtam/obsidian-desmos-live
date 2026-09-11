@@ -51,6 +51,12 @@ export type CalculatorOptions = Record<string, unknown> & {
 	mode?: PanelMode;
 	/** Expression id to a plain-language description, shown beside the symbol. */
 	sliderLabels?: Record<string, string>;
+	/**
+	 * Expression id to a description, for values the graph computes. Each named
+	 * expression must define a symbol, `L=...`, and its value is shown read-only
+	 * under the graph.
+	 */
+	readouts?: Record<string, string>;
 };
 
 /**
@@ -72,4 +78,11 @@ export interface SliderSpec {
 	min: number;
 	max: number;
 	step: number;
+}
+
+/** A value the graph computes, shown read-only under it. */
+export interface ReadoutSpec {
+	id: string;
+	symbol: string;
+	describe: string;
 }

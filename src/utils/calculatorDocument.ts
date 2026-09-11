@@ -1,4 +1,4 @@
-import type { BundleSource, CalculatorMode, DesmosState, Palette } from '../types';
+import type { BundleSource, CalculatorMode, DesmosState, Palette, ReadoutSpec } from '../types';
 
 const DESMOS_CONSTRUCTOR: Record<CalculatorMode, string> = {
 	'2d': 'GraphingCalculator',
@@ -97,6 +97,7 @@ export function buildLiveDocument(
 	options: Record<string, unknown>,
 	palette: Palette | undefined,
 	nonce: string,
+	readouts: ReadoutSpec[],
 ): string {
 	return SHELL(
 		palette,
@@ -106,6 +107,16 @@ export function buildLiveDocument(
   var nonce = ${embed(nonce)};
   var Calc = Desmos.${DESMOS_CONSTRUCTOR[mode]}(document.getElementById('calculator'), ${embed(options)});
   Calc.setState(${embed(state)});
+  // Each readout is observed rather than polled, so a value is posted when the
+  // calculator settles on it.
+  if (Calc.HelperExpression) {
+    ${embed(readouts)}.forEach(function (r) {
+      var helper = Calc.HelperExpression({ latex: r.symbol });
+      helper.observe('numericValue', function () {
+        parent.postMessage({ t: 'desmos-live-value', nonce: nonce, id: r.id, value: helper.numericValue }, '*');
+      });
+    });
+  }
   window.addEventListener('message', function (ev) {
     var d = ev.data;
     if (!d || d.t !== 'desmos-live-set' || d.nonce !== nonce) return;
@@ -130,6 +141,7 @@ export function buildShotDocument(
 	palette: Palette | undefined,
 	nonce: string,
 	size: { width: number; height: number },
+	readouts: ReadoutSpec[],
 ): string {
 	return SHELL(
 		palette,
@@ -148,6 +160,26 @@ export function buildShotDocument(
     // which reflows the plot area, so a short panel's image would show a
     // different region from the live calculator beside it. preserveAxisNumbers
     // turns that off.
+    // Readout values travel with the image, so a panel that has never been
+    // activated still shows the numbers its picture was drawn at.
+    var helpers = Calc.HelperExpression
+      ? ${embed(readouts)}.map(function (r) { return { id: r.id, h: Calc.HelperExpression({ latex: r.symbol }) }; })
+      : [];
+    function withValues(cb, waited) {
+      var values = {}, pending = false;
+      helpers.forEach(function (x) {
+        var v = x.h.numericValue;
+        if (v === undefined) pending = true;
+        else values[x.id] = isFinite(v) ? v : null;
+      });
+      // A helper evaluates asynchronously. Give it a moment rather than caching
+      // a blank, then send whatever has arrived.
+      if (pending && waited < 2000) {
+        setTimeout(function () { withValues(cb, waited + 50); }, 50);
+        return;
+      }
+      cb(values);
+    }
     Calc.asyncScreenshot({
       showLabels: true,
       format: 'svg',
@@ -155,8 +187,10 @@ export function buildShotDocument(
       width: ${Math.round(size.width)},
       height: ${Math.round(size.height)}
     }, function (data) {
-      done = true;
-      send({ ok: true, svg: String(data) });
+      withValues(function (values) {
+        done = true;
+        send({ ok: true, svg: String(data), values: values });
+      }, 0);
     });
   } catch (err) {
     done = true;

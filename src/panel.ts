@@ -1,7 +1,7 @@
 import { buildLiveDocument, buildShotDocument, detectMode, sanitiseColour } from './utils/calculatorDocument';
 import { finishRenderMath, renderMath } from 'obsidian';
 import { normaliseColours } from './utils/colours';
-import { formatValue, parseSliders } from './utils/sliders';
+import { formatReadout, formatValue, parseReadouts, parseSliders } from './utils/sliders';
 import type DesmosLivePlugin from './main';
 import type {
 	BundleSource,
@@ -10,6 +10,7 @@ import type {
 	DesmosState,
 	Palette,
 	PanelMode,
+	ReadoutSpec,
 	SliderSpec,
 } from './types';
 
@@ -147,6 +148,12 @@ function hash(input: string): string {
 	return h.toString(16).padStart(8, '0');
 }
 
+/** What a screenshot yields: the image, and the readout values it was drawn at. */
+interface ShotResult {
+	svg: string;
+	values: Record<string, number | null>;
+}
+
 export class Panel {
 	private readonly graphEl: HTMLElement;
 	private readonly sliders: SliderSpec[];
@@ -157,6 +164,8 @@ export class Panel {
 	private readonly themed: boolean;
 	private readonly state: DesmosState;
 	private readonly sliderLabels: Record<string, string>;
+	private readonly readouts: ReadoutSpec[];
+	private readonly readoutEls = new Map<string, HTMLElement>();
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -176,8 +185,9 @@ export class Panel {
 		forcedMode?: CalculatorMode,
 	) {
 		const raw = block.state ?? {};
-		const { height, mode: _mode, sliderLabels, ...blockOptions } = block.options ?? {};
+		const { height, mode: _mode, sliderLabels, readouts, ...blockOptions } = block.options ?? {};
 		this.sliderLabels = sliderLabels ?? {};
+		this.readouts = parseReadouts(raw, readouts ?? {});
 		this.themed = plugin.settings.followTheme;
 		this.palette = readPalette(el);
 		this.background = this.palette.background;
@@ -233,10 +243,13 @@ export class Panel {
 	}
 
 	private renderControls(root: HTMLElement): void {
-		if (this.sliders.length === 0 || this.panelMode === 'figure') return;
+		// A figure never activates, so its sliders would move nothing. Its readouts
+		// still say what the image shows, so they stay.
+		const sliders = this.panelMode === 'figure' ? [] : this.sliders;
+		if (sliders.length === 0 && this.readouts.length === 0) return;
 		const box = root.createDiv({ cls: 'desmos-live-controls' });
 
-		for (const spec of this.sliders) {
+		for (const spec of sliders) {
 			const row = box.createDiv({ cls: 'desmos-live-control' });
 
 			// The symbol is rendered as maths rather than as text, so `p_{j}` and
@@ -302,6 +315,32 @@ export class Panel {
 			}
 			field.addEventListener('focus', () => void this.activate());
 		}
+
+		this.renderReadouts(box);
+	}
+
+	/**
+	 * Values the graph computes, shown read-only under the sliders. A label on the
+	 * graphpaper has to hang off a point, and a number that belongs to no point, a
+	 * log-likelihood or a p-value, has nowhere honest to sit there. The rows share
+	 * the sliders' grid, so a value lands in the column a slider's value does.
+	 */
+	private renderReadouts(box: HTMLElement): void {
+		for (const spec of this.readouts) {
+			const row = box.createDiv({ cls: 'desmos-live-control desmos-live-readout' });
+			const name = row.createSpan({ cls: 'desmos-live-symbol' });
+			name.appendChild(renderMath(spec.symbol, false));
+			if (spec.describe) {
+				name.createSpan({ cls: 'desmos-live-describe', text: spec.describe });
+			}
+			row.createDiv({ cls: 'desmos-live-leader' });
+			// Filled from the cached screenshot, or by the live calculator once it runs.
+			this.readoutEls.set(spec.id, row.createSpan({ cls: 'desmos-live-readout-value', text: '…' }));
+		}
+	}
+
+	private showValue(id: string, value: number | null | undefined): void {
+		this.readoutEls.get(id)?.setText(formatReadout(value));
 	}
 
 	private set(spec: SliderSpec, value: number): void {
@@ -367,11 +406,11 @@ export class Panel {
 	async renderStatic(): Promise<void> {
 		await this.whenSized();
 		this.renderedAspect = this.shotGeometry().aspect;
-		const svg = await this.staticSvg();
+		const shot = await this.staticSvg();
 		if (!this.graphEl.isConnected || this.frame) return;
 		this.graphEl.empty();
 
-		if (!svg) {
+		if (!shot) {
 			// Say which stage failed. "Could not render" covers a missing download
 			// and a frame that will not run alike, and those need different fixes.
 			const haveBundle = (await this.plugin.bundleSource()) !== undefined;
@@ -392,7 +431,7 @@ export class Panel {
 			}
 			return;
 		}
-		const node = new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement;
+		const node = new DOMParser().parseFromString(shot.svg, 'image/svg+xml').documentElement;
 		node.setAttribute('class', 'desmos-live-svg');
 		// Width and height come off so the image scales with the note, but that only
 		// works if a viewBox carries the coordinate system. Derive one when Desmos
@@ -405,6 +444,7 @@ export class Panel {
 		node.removeAttribute('width');
 		node.removeAttribute('height');
 		this.graphEl.appendChild(node);
+		for (const spec of this.readouts) this.showValue(spec.id, shot.values[spec.id]);
 
 		this.watchShape();
 
@@ -431,7 +471,7 @@ export class Panel {
 		return { width: Math.round(height * aspect), height, aspect };
 	}
 
-	private async staticSvg(): Promise<string | undefined> {
+	private async staticSvg(): Promise<ShotResult | undefined> {
 		const { height, aspect } = this.shotGeometry();
 		const key = hash(
 			JSON.stringify([
@@ -441,14 +481,23 @@ export class Panel {
 				this.themed ? this.palette : null,
 				aspect,
 				height,
+				// Appended only when present, so a panel without readouts keeps the key
+				// its image is already cached under.
+				...(this.readouts.length > 0 ? [this.readouts] : []),
 			]),
 		);
 		const cached = await this.plugin.readCache(key);
-		if (cached) return cached;
+		if (cached) {
+			const values = this.readouts.length > 0 ? await this.plugin.readCacheValues(key) : undefined;
+			return { svg: cached, values: values ?? {} };
+		}
 
-		const svg = await this.screenshot();
-		if (svg) await this.plugin.writeCache(key, svg);
-		return svg;
+		const shot = await this.screenshot();
+		if (shot) {
+			await this.plugin.writeCache(key, shot.svg);
+			if (this.readouts.length > 0) await this.plugin.writeCacheValues(key, shot.values);
+		}
+		return shot;
 	}
 
 	/**
@@ -457,7 +506,7 @@ export class Panel {
 	 * Where it does not, the frame simply never answers, so a retry with the
 	 * bundle embedded covers the difference rather than leaving a blank panel.
 	 */
-	private async screenshot(): Promise<string | undefined> {
+	private async screenshot(): Promise<ShotResult | undefined> {
 		if (!this.plugin.calculatorJsPath) return undefined;
 		const url = this.plugin.app.vault.adapter.getResourcePath(this.plugin.calculatorJsPath);
 
@@ -468,7 +517,7 @@ export class Panel {
 		return source ? this.shotAttempt({ source }, 'srcdoc') : undefined;
 	}
 
-	private shotAttempt(bundle: BundleSource, delivery: Delivery): Promise<string | undefined> {
+	private shotAttempt(bundle: BundleSource, delivery: Delivery): Promise<ShotResult | undefined> {
 		return new Promise(resolve => {
 			const win = frameWindow(this.el);
 			const nonce = Math.random().toString(36).slice(2);
@@ -485,6 +534,7 @@ export class Panel {
 				this.themed ? this.palette : undefined,
 				nonce,
 				{ width, height },
+				this.readouts,
 			);
 			// Rendered in place inside the panel rather than parked off-screen. A
 			// mobile webview does not lay out or paint content 10,000px outside the
@@ -498,20 +548,27 @@ export class Panel {
 			let shot: HTMLIFrameElement | undefined;
 			let release = () => {};
 			let timer = 0;
-			const done = (svg: string | undefined) => {
+			const done = (result: ShotResult | undefined) => {
 				win.clearTimeout(timer);
 				win.removeEventListener('message', onMessage);
 				release();
 				shot?.remove();
-				resolve(svg);
+				resolve(result);
 			};
 			const onMessage = (ev: MessageEvent) => {
-				const d = ev.data as { t?: string; nonce?: string; ok?: boolean; svg?: string; error?: string };
+				const d = ev.data as {
+					t?: string;
+					nonce?: string;
+					ok?: boolean;
+					svg?: string;
+					values?: Record<string, number | null>;
+					error?: string;
+				};
 				if (!d || d.t !== 'desmos-live-shot' || d.nonce !== nonce) return;
 				// The frame says why it failed; discarding that leaves every failure
 				// looking like a frame that would not run.
 				if (!d.ok) this.shotError = d.error ?? 'no reason given';
-				done(d.ok ? d.svg : undefined);
+				done(d.ok && d.svg !== undefined ? { svg: d.svg, values: d.values ?? {} } : undefined);
 			};
 			win.addEventListener('message', onMessage);
 			// A frame that cannot run the script never reports at all, so the caller
@@ -552,12 +609,17 @@ export class Panel {
 			this.options,
 			this.themed ? this.palette : undefined,
 			this.nonce,
+			this.readouts,
 		);
 
-
 		this.onFrameMessage = (ev: MessageEvent) => {
-			const d = ev.data as { t?: string; nonce?: string };
-			if (!d || d.t !== 'desmos-live-ready' || d.nonce !== this.nonce) return;
+			const d = ev.data as { t?: string; nonce?: string; id?: string; value?: number | null };
+			if (!d || d.nonce !== this.nonce) return;
+			if (d.t === 'desmos-live-value') {
+				if (typeof d.id === 'string') this.showValue(d.id, d.value);
+				return;
+			}
+			if (d.t !== 'desmos-live-ready') return;
 			win.clearTimeout(this.readyTimer);
 			this.ready = true;
 			// Anything dragged while the engine was booting is applied on arrival,

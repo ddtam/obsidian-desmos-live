@@ -120,7 +120,8 @@ export default class DesmosLivePlugin extends Plugin {
 	}
 
 	/**
-	 * Delete the cached images. Only `.svg` files directly inside the plugin's own
+	 * Delete the cached images and their readout values. Only `.svg` and `.json`
+	 * files directly inside the plugin's own
 	 * cache folder are touched, so a mistyped or stale path cannot take anything
 	 * else with it, and the folder itself is left in place.
 	 */
@@ -133,9 +134,11 @@ export default class DesmosLivePlugin extends Plugin {
 		try {
 			const listing = await adapter.list(this.cacheDir);
 			for (const file of listing.files) {
-				if (!file.endsWith('.svg')) continue;
+				// Readout values sit beside their image as JSON and go with it.
+				const image = file.endsWith('.svg');
+				if (!image && !file.endsWith('.json')) continue;
 				await adapter.remove(file);
-				removed++;
+				if (image) removed++;
 			}
 		} catch (e) {
 			console.error('Desmos Live: could not clear the image cache', e);
@@ -171,6 +174,32 @@ export default class DesmosLivePlugin extends Plugin {
 			// saying: silently failing to write looks exactly like a cache that never
 			// hits, and that is a re-render on every open rather than a one-off cost.
 			console.error('Desmos Live: could not write the image cache', e);
+		}
+	}
+
+	/** Readout values for a cached image, if the image was shot with any. */
+	async readCacheValues(key: string): Promise<Record<string, number | null> | undefined> {
+		if (!this.cacheDir) return undefined;
+		const path = `${this.cacheDir}/${key}.json`;
+		try {
+			if (await this.app.vault.adapter.exists(path)) {
+				return JSON.parse(await this.app.vault.adapter.read(path)) as Record<string, number | null>;
+			}
+		} catch {
+			// Unreadable values show as pending until the calculator runs.
+		}
+		return undefined;
+	}
+
+	async writeCacheValues(key: string, values: Record<string, number | null>): Promise<void> {
+		if (!this.cacheDir) return;
+		try {
+			if (!(await this.app.vault.adapter.exists(this.cacheDir))) {
+				await this.app.vault.adapter.mkdir(this.cacheDir);
+			}
+			await this.app.vault.adapter.write(`${this.cacheDir}/${key}.json`, JSON.stringify(values));
+		} catch (e) {
+			console.error('Desmos Live: could not write readout values', e);
 		}
 	}
 }

@@ -106,6 +106,23 @@ A letter alone often does not say what it controls. `sliderLabels` maps an expre
 }
 ```
 
+A value the graph computes, such as a log-likelihood, a p-value or an eigenvalue, belongs to no point on the graphpaper, so a label has nowhere to sit. `readouts` maps an expression's `id` to a description and shows that expression's value in a read-only row under the sliders. The expression must define a symbol, and the row shows that symbol's value, to four significant figures, updating as the sliders move:
+
+```json
+{
+  "options": {
+    "sliderLabels": { "b": "slope" },
+    "readouts": { "L": "log-likelihood, nats" }
+  },
+  "state": { "expressions": { "list": [
+    { "type": "expression", "id": "b", "latex": "b=1" },
+    { "type": "expression", "id": "L", "latex": "L=-\\ln\\left(1+e^{-b}\\right)" }
+  ] } }
+}
+```
+
+Before a panel is activated its rows show the values at the state the image was drawn at, read during the screenshot and cached beside it as JSON; after activation they come from the live calculator. A value Desmos cannot compute reads `n/a`. A figure-mode panel keeps its readouts and drops its sliders, since nothing can move them.
+
 Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options, theme and the panel's aspect ratio, so they are regenerated per device rather than synced around as a second copy of a figure. Pixel width is deliberately not part of the key: only the aspect ratio changes what Desmos draws, and keying on width would miss the cache on every resize.
 
 Clear them from **Cached graph images** in settings, or with the **Clear cached graph images** command. They are regenerated on demand, so clearing costs a redraw and nothing else.

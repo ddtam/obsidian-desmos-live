@@ -1,4 +1,4 @@
-import type { DesmosState, SliderSpec } from '../types';
+import type { DesmosState, ReadoutSpec, SliderSpec } from '../types';
 
 interface StateExpression {
 	id?: string;
@@ -58,4 +58,37 @@ export function parseSliders(state: DesmosState): SliderSpec[] {
 export function formatValue(value: number, step: number): string {
 	const decimals = step >= 1 ? 0 : Math.min(4, Math.ceil(-Math.log10(step)));
 	return value.toFixed(decimals);
+}
+
+/**
+ * A readout is an expression the block names under `readouts` whose latex defines
+ * a symbol, `L=...`. The symbol is what the calculator is asked to evaluate, so an
+ * expression that defines nothing has no single value to show and is skipped.
+ * Listed in expression order, which is the order an author wrote them in.
+ */
+export function parseReadouts(state: DesmosState, described: Record<string, string>): ReadoutSpec[] {
+	const list = (state as { expressions?: { list?: StateExpression[] } }).expressions?.list ?? [];
+	const readouts: ReadoutSpec[] = [];
+
+	for (const expr of list) {
+		if (!expr || typeof expr.latex !== 'string' || typeof expr.id !== 'string') continue;
+		if (!Object.prototype.hasOwnProperty.call(described, expr.id)) continue;
+		const match = /^([^=]+)=/.exec(expr.latex);
+		if (!match?.[1]) continue;
+		const symbol = match[1].trim();
+		if (PLOTTING.has(symbol)) continue;
+		readouts.push({ id: expr.id, symbol, describe: described[expr.id] ?? '' });
+	}
+	return readouts;
+}
+
+/**
+ * Four significant figures with trailing zeros dropped: enough to check a value
+ * against a worked example, few enough that the column does not jitter. A value
+ * Desmos cannot compute, such as a real eigenvalue of a rotation, reads n/a.
+ */
+export function formatReadout(value: number | null | undefined): string {
+	if (value === null || value === undefined || !Number.isFinite(value)) return 'n/a';
+	if (Number.isInteger(value)) return String(value);
+	return String(Number(value.toPrecision(4)));
 }
