@@ -12,6 +12,7 @@ import type {
 	PanelMode,
 	ReadoutSpec,
 	SliderSpec,
+	ViewSpec,
 } from './types';
 
 /** Only one calculator runs at a time, so cost is flat in the number of panels. */
@@ -148,6 +149,31 @@ function hash(input: string): string {
 	return h.toString(16).padStart(8, '0');
 }
 
+type Scale = 'linear' | 'logarithmic';
+
+/** The part of a graph's settings a view can change. */
+interface ViewGraph {
+	viewport?: { xmin?: number; xmax?: number; ymin?: number; ymax?: number };
+	xAxisScale?: Scale;
+	yAxisScale?: Scale;
+}
+
+/**
+ * Write a view into a state. The first view is the window the image is drawn at
+ * and the calculator boots into, so it belongs in the state itself rather than
+ * being applied afterwards, and the cache key then follows it.
+ */
+function applyView(state: DesmosState, view: ViewSpec | undefined): DesmosState {
+	if (!view) return state;
+	const copy = JSON.parse(JSON.stringify(state)) as { graph?: Record<string, unknown> };
+	const graph = copy.graph ?? {};
+	graph.viewport = { ...((graph.viewport) ?? {}), ...(view.viewport ?? {}) };
+	if (view.xAxisScale) graph.xAxisScale = view.xAxisScale;
+	if (view.yAxisScale) graph.yAxisScale = view.yAxisScale;
+	copy.graph = graph;
+	return copy;
+}
+
 /** What a screenshot yields: the image, and the readout values it was drawn at. */
 interface ShotResult {
 	svg: string;
@@ -166,6 +192,10 @@ export class Panel {
 	private readonly sliderLabels: Record<string, string>;
 	private readonly readouts: ReadoutSpec[];
 	private readonly readoutEls = new Map<string, HTMLElement>();
+	private readonly views: ViewSpec[];
+	private readonly baseGraph: ViewGraph;
+	private readonly viewButtons: HTMLButtonElement[] = [];
+	private pendingView?: number;
 	private readonly nonce = Math.random().toString(36).slice(2);
 
 	private frame?: HTMLIFrameElement;
@@ -185,9 +215,10 @@ export class Panel {
 		forcedMode?: CalculatorMode,
 	) {
 		const raw = block.state ?? {};
-		const { height, mode: _mode, sliderLabels, readouts, ...blockOptions } = block.options ?? {};
+		const { height, mode: _mode, sliderLabels, readouts, views, ...blockOptions } = block.options ?? {};
 		this.sliderLabels = sliderLabels ?? {};
 		this.readouts = parseReadouts(raw, readouts ?? {});
+		this.views = Array.isArray(views) ? views.filter(v => typeof v?.label === 'string') : [];
 		this.themed = plugin.settings.followTheme;
 		this.palette = readPalette(el);
 		this.background = this.palette.background;
@@ -209,7 +240,9 @@ export class Panel {
 		}
 		Object.assign(this.options, blockOptions);
 
-		this.state = normaliseColours(raw, this.themed ? this.palette.text : undefined);
+		const normalised = normaliseColours(raw, this.themed ? this.palette.text : undefined);
+		this.baseGraph = (normalised.graph ?? {}) as unknown as ViewGraph;
+		this.state = applyView(normalised, this.views[0]);
 
 		const px = height ?? plugin.settings.defaultHeight;
 		const root = el.createDiv({ cls: 'desmos-live-panel' });
@@ -232,6 +265,7 @@ export class Panel {
 		this.graphEl = root.createDiv({ cls: 'desmos-live-graph' });
 		this.graphEl.style.height = `${px}px`;
 		if (plugin.settings.followTheme) this.graphEl.style.background = this.background;
+		this.renderViews(root);
 		this.renderControls(root);
 		void finishRenderMath();
 
@@ -341,6 +375,46 @@ export class Panel {
 
 	private showValue(id: string, value: number | null | undefined): void {
 		this.readoutEls.get(id)?.setText(formatReadout(value));
+	}
+
+	/**
+	 * One button per view. A figure never activates, so a button there could only
+	 * promise a window it cannot open, and a single view is no choice at all.
+	 */
+	private renderViews(root: HTMLElement): void {
+		if (this.views.length < 2 || this.panelMode === 'figure') return;
+		const row = root.createDiv({ cls: 'desmos-live-views' });
+		this.views.forEach((view, i) => {
+			const button = row.createEl('button', { cls: 'desmos-live-view', text: view.label });
+			if (i === 0) button.addClass('is-active');
+			button.addEventListener('click', () => void this.showView(i));
+			this.viewButtons.push(button);
+		});
+	}
+
+	private async showView(i: number): Promise<void> {
+		this.viewButtons.forEach((b, j) => b.toggleClass('is-active', j === i));
+		if (this.ready && this.frame?.contentWindow) {
+			this.frame.contentWindow.postMessage(this.viewMessage(i), '*');
+			return;
+		}
+		// The image only exists for the first view, so another one needs the
+		// calculator; it is applied the moment the frame reports ready.
+		this.pendingView = i;
+		await this.activate();
+	}
+
+	/** Bounds and scales for a view, falling back to the graph's own for anything it leaves out. */
+	private viewMessage(i: number): Record<string, unknown> {
+		const view = this.views[i];
+		const vp = { ...(this.baseGraph.viewport ?? {}), ...(view?.viewport ?? {}) };
+		return {
+			t: 'desmos-live-view',
+			nonce: this.nonce,
+			bounds: { left: vp.xmin, right: vp.xmax, bottom: vp.ymin, top: vp.ymax },
+			xAxisScale: view?.xAxisScale ?? this.baseGraph.xAxisScale ?? 'linear',
+			yAxisScale: view?.yAxisScale ?? this.baseGraph.yAxisScale ?? 'linear',
+		};
 	}
 
 	private set(spec: SliderSpec, value: number): void {
@@ -631,6 +705,10 @@ export class Panel {
 				);
 			}
 			this.pending.clear();
+			if (this.pendingView !== undefined) {
+				this.frame?.contentWindow?.postMessage(this.viewMessage(this.pendingView), '*');
+				this.pendingView = undefined;
+			}
 		};
 		win.addEventListener('message', this.onFrameMessage);
 
@@ -681,6 +759,9 @@ export class Panel {
 		this.frame = undefined;
 		this.ready = false;
 		this.pending.clear();
+		// The image is drawn at the first view, so the buttons say so again.
+		this.pendingView = undefined;
+		this.viewButtons.forEach((b, j) => b.toggleClass('is-active', j === 0));
 		this.graphEl.removeClass('is-live');
 		releaseLive(this);
 		await this.renderStatic();

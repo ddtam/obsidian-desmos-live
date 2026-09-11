@@ -57,6 +57,11 @@ export type CalculatorOptions = Record<string, unknown> & {
 	 * under the graph.
 	 */
 	readouts?: Record<string, string>;
+	/**
+	 * Named windows onto the graph, drawn as buttons under it. The first is the
+	 * one the image is drawn at and the calculator boots into.
+	 */
+	views?: ViewSpec[];
 };
 
 /**
@@ -78,6 +83,14 @@ export interface SliderSpec {
 	min: number;
 	max: number;
 	step: number;
+}
+
+/** A named window: bounds merged over the graph's own, and optional axis scales. */
+export interface ViewSpec {
+	label: string;
+	viewport?: { xmin?: number; xmax?: number; ymin?: number; ymax?: number };
+	xAxisScale?: 'linear' | 'logarithmic';
+	yAxisScale?: 'linear' | 'logarithmic';
 }
 
 /** A value the graph computes, shown read-only under it. */

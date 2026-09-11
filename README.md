@@ -123,6 +123,19 @@ A value the graph computes, such as a log-likelihood, a p-value or an eigenvalue
 
 Before a panel is activated its rows show the values at the state the image was drawn at, read during the screenshot and cached beside it as JSON; after activation they come from the live calculator. A value Desmos cannot compute reads `n/a`. A figure-mode panel keeps its readouts and drops its sliders, since nothing can move them.
 
+A graph whose lesson lives in two windows, say the bulk of a distribution and its far tail, can name them. `views` is a list of windows, each with a label, bounds merged over the graph's own viewport, and optional `xAxisScale` or `yAxisScale` of `linear` or `logarithmic`. Each becomes a button under the graph. The first view is the one the image is drawn at and the calculator boots into; choosing another activates the panel if it is not already live. A log axis needs a positive lower bound.
+
+```json
+{
+  "options": {
+    "views": [
+      { "label": "decision region", "viewport": { "ymin": 0, "ymax": 0.06 } },
+      { "label": "all p-values, log scale", "viewport": { "ymin": 0.0001, "ymax": 1 }, "yAxisScale": "logarithmic" }
+    ]
+  }
+}
+```
+
 Images are cached under `.obsidian/plugins/desmos-live/cache/`, keyed by state, options, theme and the panel's aspect ratio, so they are regenerated per device rather than synced around as a second copy of a figure. Pixel width is deliberately not part of the key: only the aspect ratio changes what Desmos draws, and keying on width would miss the cache on every resize.
 
 Clear them from **Cached graph images** in settings, or with the **Clear cached graph images** command. They are regenerated on demand, so clearing costs a redraw and nothing else.

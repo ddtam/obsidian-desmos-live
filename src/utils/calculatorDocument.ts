@@ -119,8 +119,22 @@ export function buildLiveDocument(
   }
   window.addEventListener('message', function (ev) {
     var d = ev.data;
-    if (!d || d.t !== 'desmos-live-set' || d.nonce !== nonce) return;
-    Calc.setExpression({ id: d.id, latex: d.latex });
+    if (!d || d.nonce !== nonce) return;
+    if (d.t === 'desmos-live-set') {
+      Calc.setExpression({ id: d.id, latex: d.latex });
+      return;
+    }
+    if (d.t === 'desmos-live-view') {
+      // Scales first: a log axis rejects a non-positive bound, so the bounds
+      // are only valid once the scale they were written for is in place.
+      try {
+        Calc.updateSettings({ xAxisScale: d.xAxisScale, yAxisScale: d.yAxisScale });
+      } catch (err) {}
+      var b = d.bounds;
+      if (b && isFinite(b.left) && isFinite(b.right) && isFinite(b.bottom) && isFinite(b.top)) {
+        Calc.setMathBounds(b);
+      }
+    }
   });
   parent.postMessage({ t: 'desmos-live-ready', nonce: nonce }, '*');
 })();
