@@ -55,6 +55,43 @@ export function graphpaperCss(palette: Palette): string {
 }
 
 /**
+ * Desmos strokes the live graph's axes, tick marks, arrows and gridlines in a
+ * fixed black, `rgba(0,0,0,a)`, from a function no option reaches: `textColor`
+ * colours the numbers and not the lines, so on a dark theme the live axes
+ * vanish while the stylesheet keeps the static image's legible. The canvas is
+ * the only seam. Before the bundle loads, the context's colour setters are
+ * wrapped so exact black at any alpha becomes the theme's text colour at that
+ * alpha, the substitution normaliseColours makes for a black expression.
+ * Everything an expression or the config supplies is hex and passes untouched.
+ */
+export function canvasThemeScript(palette: Palette): string {
+	const hex = palette.text.replace('#', '');
+	const rgb = [0, 2, 4].map(i => Number.parseInt(hex.slice(i, i + 2), 16));
+	if (hex.length !== 6 || rgb.some(c => !Number.isFinite(c))) return '';
+	return `<script>
+(function () {
+  var proto = window.CanvasRenderingContext2D && CanvasRenderingContext2D.prototype;
+  if (!proto) return;
+  var black = /^rgba\\(0,0,0,([0-9.]+)\\)$/;
+  ['strokeStyle', 'fillStyle'].forEach(function (name) {
+    var own = Object.getOwnPropertyDescriptor(proto, name);
+    if (!own || !own.set || !own.get) return;
+    Object.defineProperty(proto, name, {
+      configurable: true,
+      enumerable: own.enumerable,
+      get: own.get,
+      set: function (v) {
+        var m = typeof v === 'string' ? black.exec(v) : null;
+        own.set.call(this, m ? 'rgba(${rgb.join(',')},' + m[1] + ')' : v);
+      }
+    });
+  });
+})();
+</script>
+`;
+}
+
+/**
  * Referencing the bundle by URL keeps each frame small, and works because a blob
  * document inherits the app's origin, so an `app://` script is same-origin.
  * Inlining it instead costs ~4 MB per frame but needs no origin at all, which is
@@ -101,7 +138,7 @@ export function buildLiveDocument(
 ): string {
 	return SHELL(
 		palette,
-		`${scriptTag(bundle)}
+		`${palette ? canvasThemeScript(palette) : ''}${scriptTag(bundle)}
 <script>
 (function () {
   var nonce = ${embed(nonce)};

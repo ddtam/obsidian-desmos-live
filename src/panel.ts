@@ -378,11 +378,11 @@ export class Panel {
 		for (const spec of this.readouts) {
 			const row = box.createDiv({ cls: 'desmos-live-control desmos-live-readout' });
 			const name = row.createSpan({ cls: 'desmos-live-symbol' });
-			if (spec.color) {
-				name.addClass('has-colour');
-				name.setCssProps({ '--desmos-live-readout-colour': spec.color });
-			}
-			name.appendChild(renderMath(spec.symbol, false));
+			// renderMath returns a bare MathJax container with no class of ours, so
+			// the colour goes on a wrapper the stylesheet can name for certain.
+			const math = name.createSpan({ cls: 'desmos-live-readout-math' });
+			if (spec.color) math.setCssProps({ '--desmos-live-readout-colour': spec.color });
+			math.appendChild(renderMath(spec.symbol, false));
 			if (spec.describe) {
 				name.createSpan({ cls: 'desmos-live-describe', text: spec.describe });
 			}
