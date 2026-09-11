@@ -6,10 +6,14 @@
 	background-color: var(--background-secondary);
 }
 
+/* Space outside the panel as well as inside it. The code block wrapper carries
+   no margin, so two panels in a row ran together, the second panel's graph
+   starting against the first panel's last readout row. */
 .desmos-live-panel {
 	display: flex;
 	flex-direction: column;
 	gap: var(--size-4-2);
+	margin-block: var(--p-spacing, 1rem);
 }
 
 /* The static image and the live frame occupy the same box, so activating a
